@@ -431,7 +431,8 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.1
+        temperature: 0.1,
+        max_tokens: 4096
       })
     });
 
@@ -468,7 +469,8 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
             body: JSON.stringify({
               model: "meta-llama/llama-3-8b-instruct:free",
               messages,
-              temperature: 0.7
+              temperature: 0.7,
+              max_tokens: 4096
             })
           });
         }, Math.max(2, attemptsLeft));
@@ -505,7 +507,8 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
             body: JSON.stringify({
               model: "meta-llama/llama-3-8b-instruct:free",
               messages,
-              temperature: 0.7
+              temperature: 0.7,
+              max_tokens: 4096
             })
           });
 
@@ -789,7 +792,8 @@ async function fetchOpenRouterDirect(apiKey: string, model: string, messages: an
   const bodyObj: any = {
     model: model || "meta-llama/llama-3-8b-instruct:free",
     messages,
-    temperature: 0.1
+    temperature: 0.1,
+    max_tokens: 4096
   };
   
   if (isJsonExpected) {
@@ -844,7 +848,8 @@ async function fetchGeminiDirect(apiKey: string, messages: any[], isJsonExpected
   const payload: any = {
     contents,
     generationConfig: {
-      temperature: 0.1
+      temperature: 0.1,
+      maxOutputTokens: 4096
     }
   };
 
@@ -892,7 +897,8 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
   const bodyObj: any = {
     model: "llama3-8b-8192",
     messages,
-    temperature: 0.1
+    temperature: 0.1,
+    max_tokens: 4096
   };
   
   if (isJsonExpected) {
@@ -965,7 +971,8 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
 
       const item = pool[globalPoolIndex % pool.length];
 
-      if (!item || !item.key || typeof item.key !== "string" || item.key.trim() === "" || item.key === "undefined" || item.key === "null") {
+      if (!item || !item.key || typeof item.key !== "string" || item.key.trim() === "" || item.key === "undefined" || item.key === "null" ||
+          (item.provider === "openRouter" && !item.key.startsWith("sk-or-"))) {
         console.warn("Skipping invalid key slot");
         globalPoolIndex++;
         continue;

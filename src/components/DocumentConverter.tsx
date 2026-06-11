@@ -225,7 +225,7 @@ export default function DocumentConverter() {
     fetchUserAiQuota();
   }, [fetchUserAiQuota]);
 
-  const [concurrency, setConcurrency] = useState<number>(3);
+  const [concurrency, setConcurrency] = useState<number>(2);
   const [reviewPage, setReviewPage] = useState<number>(1);
 
   // Input states
@@ -253,8 +253,8 @@ export default function DocumentConverter() {
   const [sanitizeDuplicates, setSanitizeDuplicates] = useState(true);
   const [isSplitDeckEnabled, setIsSplitDeckEnabled] = useState(false);
   const [splitDeckSize, setSplitDeckSize] = useState<number>(40);
-  const [chunkMaxWords, setChunkMaxWords] = useState<number>(600); // Strict tiny limits - raised default to 600
-  const [chunkMaxChars, setChunkMaxChars] = useState<number>(9000); // Raised default to 9000
+  const [chunkMaxWords, setChunkMaxWords] = useState<number>(150); // Mặc định 150 từ
+  const [chunkMaxChars, setChunkMaxChars] = useState<number>(2500); // Mặc định 2500 kí tự
   const [chunkOverlapWords, setChunkOverlapWords] = useState<number>(10);
   const [lastSplitMetrics, setLastSplitMetrics] = useState<{
     totalWords: number;
@@ -1867,6 +1867,7 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
                                className="w-full bg-white dark:bg-zinc-900 border border-stone-200 dark:border-zinc-850 rounded-lg px-2 py-1.5 focus:outline-none font-bold"
                             >
                                 <option value={100}>100 từ (Cực nhỏ)</option>
+                                <option value={150}>150 từ (Mặc định)</option>
                                 <option value={200}>200 từ</option>
                                 <option value={300}>300 từ (Nhanh)</option>
                                 <option value={400}>400 từ (Đề nghị)</option>
@@ -1886,6 +1887,7 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
                                className="w-full bg-white dark:bg-zinc-900 border border-stone-200 dark:border-zinc-850 rounded-lg px-2 py-1.5 focus:outline-none font-bold"
                             >
                                <option value={1500}>1500 kí tự</option>
+                               <option value={2500}>2500 kí tự (Mặc định)</option>
                                <option value={3000}>3000 kí tự</option>
                                <option value={4500}>4500 kí tự</option>
                                <option value={6005}>6000 kí tự (Khuyên dùng)</option>
