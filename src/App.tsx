@@ -35,6 +35,8 @@ import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { AppUpdateNotification } from "./components/AppUpdateNotification";
 import { AutoRefreshBadge } from "./components/AutoRefreshBadge";
 import { ForceRefreshButton } from "./components/ForceRefreshButton";
+import { ShortcutsHelpModal } from "./components/ShortcutsHelpModal";
+import { Keyboard } from "lucide-react";
 
 const PageLoader = () => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-stone-500">
@@ -72,9 +74,112 @@ function Layout({ children }: { children: React.ReactNode }) {
   const isUserAdminOrTeacher = currentUserObj?.role === 'teacher' || currentUserObj?.role === 'admin' || currentUserObj?.role === 'Admin';
   const [isAdminMode, setIsAdminMode] = useState(sessionStorage.getItem('isAdminMode') !== 'false');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Guard against triggering while typing in input elements
+      const activeEl = document.activeElement;
+      if (activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.isContentEditable ||
+        activeEl.getAttribute('role') === 'textbox'
+      )) {
+        return;
+      }
+
+      // Ignore modifier keys to avoid overriding browser standard bindings (Ctrl+S, Command+R etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
+      const key = e.key;
+      const keyUpper = key.toUpperCase();
+
+      const triggerNav = (tabName: string) => {
+        // Switch view if we are on a different page
+        if (location.pathname !== '/dashboard') {
+          navigate('/dashboard');
+          // Wait slightly for mounting before dispatching tab change
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("henosis-keyboard-nav", { detail: { tab: tabName } }));
+          }, 300);
+        } else {
+          window.dispatchEvent(new CustomEvent("henosis-keyboard-nav", { detail: { tab: tabName } }));
+        }
+      };
+
+      // Map shortcuts
+      switch (keyUpper) {
+        case 'H':
+          e.preventDefault();
+          triggerNav('study');
+          break;
+        case 'U':
+          e.preventDefault();
+          triggerNav('create_deck');
+          break;
+        case 'R':
+          e.preventDefault();
+          triggerNav('ranking');
+          break;
+        case 'K':
+          e.preventDefault();
+          triggerNav('skill_tree');
+          break;
+        case 'C':
+          e.preventDefault();
+          triggerNav('cyberpunk');
+          break;
+        case 'A':
+          e.preventDefault();
+          triggerNav('achievements');
+          break;
+        case 'P':
+          e.preventDefault();
+          triggerNav('profile');
+          break;
+        case 'M':
+          e.preventDefault();
+          triggerNav('history');
+          break;
+        case 'O':
+          e.preventDefault();
+          navigate('/co-study');
+          break;
+        case 'S':
+          e.preventDefault();
+          setShowSettingsModal(prev => !prev);
+          break;
+        case 'E':
+          e.preventDefault();
+          toggleEcoMode();
+          break;
+        case 'F':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case '?':
+        case '/': // handle Shift+/ which yields '?'
+          if (key === '?') {
+            e.preventDefault();
+            setShowShortcutsModal(prev => !prev);
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [location.pathname, toggleEcoMode, navigate]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {

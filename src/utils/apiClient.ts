@@ -159,7 +159,7 @@ function cleanJsonResponse(text: string): string {
 }
 
 function buildGroqPayload(url: string, parsedBody: any): { model: string; messages: any[] } {
-  const model = "microsoft/phi-3-medium-128k-instruct:free"; // Defaulting OpenRouter target
+  const model = "meta-llama/llama-3-8b-instruct:free"; // Defaulting OpenRouter target
 
   let messages: any[] = [];
 
@@ -485,7 +485,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
+              model: "meta-llama/llama-3-8b-instruct:free", // Strictly updated to Llama-3-8b
               messages,
               temperature: 0.7,
               max_tokens: 4096 // Force-set directly to 4096
@@ -523,7 +523,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
+              model: "meta-llama/llama-3-8b-instruct:free", // Strictly updated to Llama-3-8b
               messages,
               temperature: 0.7,
               max_tokens: 4096 // Force-set directly to 4096
@@ -1002,7 +1002,7 @@ export function getInterleavedPool(): InterleavedKey[] {
 // Direct Call implementations using raw provider HTTP Endpoints bypasses server proxies
 async function fetchOpenRouterDirect(apiKey: string, model: string, messages: any[], isJsonExpected: boolean): Promise<string> {
   const bodyObj: any = {
-    model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
+    model: "meta-llama/llama-3-8b-instruct:free", // Strictly updated to Llama-3-8b
     messages,
     temperature: 0.1,
     max_tokens: 4096 // Force-set to 4096
