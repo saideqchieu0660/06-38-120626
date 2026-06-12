@@ -803,25 +803,28 @@ export function getInterleavedPool(): InterleavedKey[] {
     if (gf3) geminiKeysRaw.push(gf3);
   } catch (e) {}
 
-  // 2. Parse OpenRouter Keys: import.meta.env.VITE_OPENROUTER_API_KEY_1 to import.meta.env.VITE_OPENROUTER_API_KEY_8
-  for (let i = 1; i <= 8; i++) {
-    const k1 = cleanKey(safeProcessEnv[`OPENROUTER_API_KEY_${i}`]);
+  // 2. Parse OpenRouter Keys: Loop 1 to 9
+  for (let i = 1; i <= 9; i++) {
+    const k1 = cleanKey(safeProcessEnv[`OPENROUTER_KEY_${i}`]);
     if (k1) openRouterKeys.push(k1);
 
-    const k2 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_API_KEY_${i}`]);
+    const k2 = cleanKey(safeProcessEnv[`OPENROUTER_API_KEY_${i}`]);
     if (k2) openRouterKeys.push(k2);
 
-    const k3 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_KEY_${i}`]);
+    const k3 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_API_KEY_${i}`]);
     if (k3) openRouterKeys.push(k3);
 
+    const k4 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_KEY_${i}`]);
+    if (k4) openRouterKeys.push(k4);
+
     try {
-      const k4 = cleanKey(import.meta.env[`VITE_OPENROUTER_API_KEY_${i}`]);
-      if (k4) openRouterKeys.push(k4);
+      const k5 = cleanKey(import.meta.env[`VITE_OPENROUTER_API_KEY_${i}`]);
+      if (k5) openRouterKeys.push(k5);
     } catch (e) {}
 
     try {
-      const k5 = cleanKey(import.meta.env[`VITE_OPENROUTER_KEY_${i}`]);
-      if (k5) openRouterKeys.push(k5);
+      const k6 = cleanKey(import.meta.env[`VITE_OPENROUTER_KEY_${i}`]);
+      if (k6) openRouterKeys.push(k6);
     } catch (e) {}
   }
 
@@ -841,25 +844,28 @@ export function getInterleavedPool(): InterleavedKey[] {
     if (orf5) openRouterKeys.push(orf5);
   } catch (e) {}
 
-  // 3. Parse DeepInfra Keys: import.meta.env.VITE_DEEPINFRA_API_KEY_1 to import.meta.env.VITE_DEEPINFRA_API_KEY_8
+  // 3. Parse DeepInfra Keys: Loop 1 to 8
   for (let i = 1; i <= 8; i++) {
-    const k1 = cleanKey(safeProcessEnv[`DEEPINFRA_API_KEY_${i}`]);
+    const k1 = cleanKey(safeProcessEnv[`DEEPINFRA_KEY_${i}`]);
     if (k1) deepInfraKeys.push(k1);
 
-    const k2 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`]);
+    const k2 = cleanKey(safeProcessEnv[`DEEPINFRA_API_KEY_${i}`]);
     if (k2) deepInfraKeys.push(k2);
 
-    const k3 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`]);
+    const k3 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`]);
     if (k3) deepInfraKeys.push(k3);
 
+    const k4 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`]);
+    if (k4) deepInfraKeys.push(k4);
+
     try {
-      const k4 = cleanKey(import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`]);
-      if (k4) deepInfraKeys.push(k4);
+      const k5 = cleanKey(import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`]);
+      if (k5) deepInfraKeys.push(k5);
     } catch (e) {}
 
     try {
-      const k5 = cleanKey(import.meta.env[`VITE_DEEPINFRA_KEY_${i}`]);
-      if (k5) deepInfraKeys.push(k5);
+      const k6 = cleanKey(import.meta.env[`VITE_DEEPINFRA_KEY_${i}`]);
+      if (k6) deepInfraKeys.push(k6);
     } catch (e) {}
   }
 

@@ -666,23 +666,39 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Rate Limit Defense: Dynamic Round-Robin OpenRouter API Key Manager (OPENROUTER_KEY_1 ... OPENROUTER_KEY_99)
-const OPENROUTER_KEYS = Object.keys(process.env)
-  .filter(key => key.startsWith('OPENROUTER_KEY_'))
-  .sort((a, b) => {
-    const numA = parseInt(a.replace('OPENROUTER_KEY_', '')) || 0;
-    const numB = parseInt(b.replace('OPENROUTER_KEY_', '')) || 0;
-    return numA - numB;
-  })
-  .map(key => process.env[key])
-  .filter(Boolean) as string[];
-
-// Fallback to OPENROUTER_KEY or VITE_OPENROUTER_KEY if no numbered keys found
-if (OPENROUTER_KEYS.length === 0 && process.env.OPENROUTER_KEY) {
-  OPENROUTER_KEYS.push(process.env.OPENROUTER_KEY);
+// Rate Limit Defense: Dynamic Round-Robin OpenRouter API Key Manager (Loop 1 to 9 combined with fallback keys)
+const OPENROUTER_KEYS: string[] = [];
+for (let i = 1; i <= 9; i++) {
+  const possibleKeys = [
+    process.env[`OPENROUTER_KEY_${i}`],
+    process.env[`OPENROUTER_API_KEY_${i}`],
+    process.env[`VITE_OPENROUTER_API_KEY_${i}`],
+    process.env[`VITE_OPENROUTER_KEY_${i}`]
+  ];
+  for (const k of possibleKeys) {
+    if (k && k.trim() && k !== "undefined" && k !== "null") {
+      const clean = k.trim();
+      if (!OPENROUTER_KEYS.includes(clean)) {
+        OPENROUTER_KEYS.push(clean);
+      }
+    }
+  }
 }
-if (OPENROUTER_KEYS.length === 0 && process.env.VITE_OPENROUTER_KEY) {
-  OPENROUTER_KEYS.push(process.env.VITE_OPENROUTER_KEY);
+
+// Fallback to single standard keys
+const singleOrKeys = [
+  process.env.OPENROUTER_API_KEY,
+  process.env.OPENROUTER_KEY,
+  process.env.VITE_OPENROUTER_API_KEY,
+  process.env.VITE_OPENROUTER_KEY
+];
+for (const k of singleOrKeys) {
+  if (k && k.trim() && k !== "undefined" && k !== "null") {
+    const clean = k.trim();
+    if (!OPENROUTER_KEYS.includes(clean)) {
+      OPENROUTER_KEYS.push(clean);
+    }
+  }
 }
 
 const openRouterKeyStates: KeyState[] = OPENROUTER_KEYS.map((key, i) => ({
