@@ -61,6 +61,7 @@ interface QueuedRequest {
   reject: (reason?: any) => void;
 }
 
+// Parallel Processing Threads: Force default to 2
 const PARALLEL_LIMIT = 2; // Maximum concurrent pending calls from this client (Tăng tốc - 2 luồng)
 const MIN_DELAY_BETWEEN_CALLS = 2500; // 2.5s base safety margin
 let activeRequests = 0;
@@ -158,7 +159,7 @@ function cleanJsonResponse(text: string): string {
 }
 
 function buildGroqPayload(url: string, parsedBody: any): { model: string; messages: any[] } {
-  const model = "meta-llama/llama-3-8b-instruct:free";
+  const model = "google/gemma-2-9b-it:free"; // Defaulting OpenRouter target
 
   let messages: any[] = [];
 
@@ -281,7 +282,6 @@ BẮT BUỘC ĐỊNH DẠNG: Chỉ trả về ĐÚNG MỘT MẢNG JSON duy nhấ
     const { textChunk, isDegraded, targetMin = 4, targetMax = 15 } = parsedBody;
     const normalPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
  
-
 Each flashcard object MUST have:
 - front: English word/phrase.
 - ipa: Accurate IPA pronunciation.
@@ -414,9 +414,26 @@ ${jsonText}`;
   return { model, messages };
 }
 
-// Smart Circuit Breaker configuration for OpenRouter
+// Smart Circuit Breaker configuration for OpenRouter (Server boundary)
 let openRouterDisabledUntil = 0;
 let openRouterConsecutiveFailures = 0;
+
+// Force robust 45s Timeout helper
+async function fetchWithTimeout(url: string, options: RequestInit, ms = 45000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
 
 async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemptsLeft = 1, delayMs = 500): Promise<string> {
   if (Date.now() < openRouterDisabledUntil) {
@@ -424,7 +441,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
   }
 
   try {
-    const rawRes = await fetch("/api/proxy/openrouter", {
+    const rawRes = await fetchWithTimeout("/api/proxy/openrouter", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -433,9 +450,9 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
         model,
         messages,
         temperature: 0.1,
-        max_tokens: 4096
+        max_tokens: 4096 // Force-set directly to 4096
       })
-    });
+    }, 45000);
 
     if (rawRes.ok) {
       const data = await rawRes.json();
@@ -454,7 +471,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
     }
     console.warn("[apiClient] Backend OpenRouter proxy route failed, checking client-side key fallback...", proxyErr.message || proxyErr);
     
-    const { ClientOpenRouterManager, fetchWithKeyRotation } = await import("@/src/lib/gemini.ts").catch(() => ({ ClientOpenRouterManager: null, fetchWithKeyRotation: null }));
+    const { ClientOpenRouterManager, fetchWithKeyRotation } = await import("../lib/gemini").catch(() => ({ ClientOpenRouterManager: null, fetchWithKeyRotation: null }));
     
     if (ClientOpenRouterManager && ClientOpenRouterManager.getKey() !== null) {
       try {
@@ -468,10 +485,10 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "meta-llama/llama-3-8b-instruct:free",
+              model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
               messages,
               temperature: 0.7,
-              max_tokens: 4096
+              max_tokens: 4096 // Force-set directly to 4096
             })
           });
         }, Math.max(2, attemptsLeft));
@@ -506,10 +523,10 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "meta-llama/llama-3-8b-instruct:free",
+              model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
               messages,
               temperature: 0.7,
-              max_tokens: 4096
+              max_tokens: 4096 // Force-set directly to 4096
             })
           });
 
@@ -551,13 +568,13 @@ async function mapOpenRouterResponse(url: string, content: string): Promise<Resp
   } else if (url.includes("/api/automation/process-chunk") || url.includes("/api/automation/validate-json")) {
     try {
       const parsed = JSON.parse(cleanContent);
-      parsedData = { success: true, cards: parsed, keyIndex: "OpenRouter", keyMasked: "OR-Llama3" };
+      parsedData = { success: true, cards: parsed, keyIndex: "OpenRouter", keyMasked: "OR-Gemma2" };
     } catch (e) {
       const match = cleanContent.match(/\[\s*\{[\s\S]*\}\s*\]/);
       if (match) {
-        parsedData = { success: true, cards: JSON.parse(match[0]), keyIndex: "OpenRouter", keyMasked: "OR-Llama3" };
+        parsedData = { success: true, cards: JSON.parse(match[0]), keyIndex: "OpenRouter", keyMasked: "OR-Gemma2" };
       } else {
-        throw new Error("Unable to parse OpenRouter response as clean JSON array.");
+        throw new Error("Unable to parse response as clean JSON array.");
       }
     }
   } else if (url.includes("/api/convert-document-chunk")) {
@@ -569,7 +586,7 @@ async function mapOpenRouterResponse(url: string, content: string): Promise<Resp
       if (match) {
         parsedData = { flashcards: JSON.parse(match[0]) };
       } else {
-        throw new Error("Unable to parse OpenRouter response as clean document-chunk array.");
+        throw new Error("Unable to parse response as clean document-chunk array.");
       }
     }
   } else if (url.includes("/api/automation/hydrate-card")) {
@@ -577,7 +594,7 @@ async function mapOpenRouterResponse(url: string, content: string): Promise<Resp
       const parsed = JSON.parse(cleanContent);
       parsedData = { success: true, example: parsed.example || "", origin: parsed.origin || "" };
     } catch (e) {
-      throw new Error("Unable to parse OpenRouter-hydrated card JSON.");
+      throw new Error("Unable to parse hydrated card JSON.");
     }
   }
 
@@ -650,7 +667,8 @@ async function syncProviderToggles() {
       updateApiProviderConfig({
         openRouter: data.openRouterEnabled !== false,
         gemini: data.geminiEnabled !== false,
-        groq: data.groqEnabled !== false
+        groq: data.groqEnabled !== false,
+        deepInfra: data.deepInfraEnabled !== false
       });
       console.log("[apiClient] Automatically synchronized active provider toggles from server:", apiProviderConfig);
     }
@@ -752,188 +770,197 @@ export function getInterleavedPool(): InterleavedKey[] {
   // Safe process.env accessor to avoid ReferenceError on client environment
   const safeProcessEnv = (typeof process !== "undefined" && process?.env) ? process.env : {};
 
+  // Clean helper
+  const cleanKey = (val: any): string => {
+    if (!val || typeof val !== "string") return "";
+    const clean = val.trim();
+    if (clean === "undefined" || clean === "null" || clean === "") return "";
+    return clean;
+  };
+
   // 1. Parse Gemini Keys: process.env.GEMINI_API_KEY_1 to process.env.GEMINI_API_KEY_11
   for (let i = 1; i <= 11; i++) {
-    const k1 = safeProcessEnv[`GEMINI_API_KEY_${i}`];
-    if (k1 && typeof k1 === 'string' && k1.trim()) geminiKeysRaw.push(k1.trim());
+    const k1 = cleanKey(safeProcessEnv[`GEMINI_API_KEY_${i}`]);
+    if (k1) geminiKeysRaw.push(k1);
 
-    const k2 = safeProcessEnv[`VITE_GEMINI_API_KEY_${i}`];
-    if (k2 && typeof k2 === 'string' && k2.trim()) geminiKeysRaw.push(k2.trim());
+    const k2 = cleanKey(safeProcessEnv[`VITE_GEMINI_API_KEY_${i}`]);
+    if (k2) geminiKeysRaw.push(k2);
 
     try {
-      const k3 = import.meta.env[`VITE_GEMINI_API_KEY_${i}`];
-      if (k3 && typeof k3 === 'string' && k3.trim()) geminiKeysRaw.push(k3.trim());
+      const k3 = cleanKey(import.meta.env[`VITE_GEMINI_API_KEY_${i}`]);
+      if (k3) geminiKeysRaw.push(k3);
     } catch (e) {}
   }
 
   // Single default fallback Gemini keys
-  if (safeProcessEnv.GEMINI_API_KEY && typeof safeProcessEnv.GEMINI_API_KEY === 'string' && safeProcessEnv.GEMINI_API_KEY.trim()) {
-    geminiKeysRaw.push(safeProcessEnv.GEMINI_API_KEY.trim());
-  }
-  if (safeProcessEnv.VITE_GEMINI_API_KEY && typeof safeProcessEnv.VITE_GEMINI_API_KEY === 'string' && safeProcessEnv.VITE_GEMINI_API_KEY.trim()) {
-    geminiKeysRaw.push(safeProcessEnv.VITE_GEMINI_API_KEY.trim());
-  }
+  const gf1 = cleanKey(safeProcessEnv.GEMINI_API_KEY);
+  if (gf1) geminiKeysRaw.push(gf1);
+  const gf2 = cleanKey(safeProcessEnv.VITE_GEMINI_API_KEY);
+  if (gf2) geminiKeysRaw.push(gf2);
   try {
-    if (import.meta.env.VITE_GEMINI_API_KEY && typeof import.meta.env.VITE_GEMINI_API_KEY === 'string' && import.meta.env.VITE_GEMINI_API_KEY.trim()) {
-      geminiKeysRaw.push(import.meta.env.VITE_GEMINI_API_KEY.trim());
-    }
+    const gf3 = cleanKey(import.meta.env.VITE_GEMINI_API_KEY);
+    if (gf3) geminiKeysRaw.push(gf3);
   } catch (e) {}
 
   // 2. Parse OpenRouter Keys: import.meta.env.VITE_OPENROUTER_API_KEY_1 to import.meta.env.VITE_OPENROUTER_API_KEY_8
   for (let i = 1; i <= 8; i++) {
+    const k1 = cleanKey(safeProcessEnv[`OPENROUTER_API_KEY_${i}`]);
+    if (k1) openRouterKeys.push(k1);
+
+    const k2 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_API_KEY_${i}`]);
+    if (k2) openRouterKeys.push(k2);
+
+    const k3 = cleanKey(safeProcessEnv[`VITE_OPENROUTER_KEY_${i}`]);
+    if (k3) openRouterKeys.push(k3);
+
     try {
-      const k1 = import.meta.env[`VITE_OPENROUTER_API_KEY_${i}`];
-      if (k1 && typeof k1 === 'string' && k1.trim()) openRouterKeys.push(k1.trim());
+      const k4 = cleanKey(import.meta.env[`VITE_OPENROUTER_API_KEY_${i}`]);
+      if (k4) openRouterKeys.push(k4);
     } catch (e) {}
+
     try {
-      const k2 = import.meta.env[`VITE_OPENROUTER_KEY_${i}`];
-      if (k2 && typeof k2 === 'string' && k2.trim()) openRouterKeys.push(k2.trim());
+      const k5 = cleanKey(import.meta.env[`VITE_OPENROUTER_KEY_${i}`]);
+      if (k5) openRouterKeys.push(k5);
     } catch (e) {}
-
-    const kp1 = safeProcessEnv[`VITE_OPENROUTER_API_KEY_${i}`];
-    if (kp1 && typeof kp1 === 'string' && kp1.trim()) openRouterKeys.push(kp1.trim());
-
-    const kp2 = safeProcessEnv[`VITE_OPENROUTER_KEY_${i}`];
-    if (kp2 && typeof kp2 === 'string' && kp2.trim()) openRouterKeys.push(kp2.trim());
-
-    const kp3 = safeProcessEnv[`OPENROUTER_API_KEY_${i}`];
-    if (kp3 && typeof kp3 === 'string' && kp3.trim()) openRouterKeys.push(kp3.trim());
   }
 
   // Single default fallback OR keys
+  const orf1 = cleanKey(safeProcessEnv.OPENROUTER_API_KEY);
+  if (orf1) openRouterKeys.push(orf1);
+  const orf2 = cleanKey(safeProcessEnv.VITE_OPENROUTER_API_KEY);
+  if (orf2) openRouterKeys.push(orf2);
+  const orf3 = cleanKey(safeProcessEnv.VITE_OPENROUTER_KEY);
+  if (orf3) openRouterKeys.push(orf3);
   try {
-    if (import.meta.env.VITE_OPENROUTER_API_KEY && typeof import.meta.env.VITE_OPENROUTER_API_KEY === 'string' && import.meta.env.VITE_OPENROUTER_API_KEY.trim()) {
-      openRouterKeys.push(import.meta.env.VITE_OPENROUTER_API_KEY.trim());
-    }
-    if (import.meta.env.VITE_OPENROUTER_KEY && typeof import.meta.env.VITE_OPENROUTER_KEY === 'string' && import.meta.env.VITE_OPENROUTER_KEY.trim()) {
-      openRouterKeys.push(import.meta.env.VITE_OPENROUTER_KEY.trim());
-    }
+    const orf4 = cleanKey(import.meta.env.VITE_OPENROUTER_API_KEY);
+    if (orf4) openRouterKeys.push(orf4);
   } catch (e) {}
-
-  if (safeProcessEnv.VITE_OPENROUTER_API_KEY && typeof safeProcessEnv.VITE_OPENROUTER_API_KEY === 'string' && safeProcessEnv.VITE_OPENROUTER_API_KEY.trim()) {
-    openRouterKeys.push(safeProcessEnv.VITE_OPENROUTER_API_KEY.trim());
-  }
-  if (safeProcessEnv.VITE_OPENROUTER_KEY && typeof safeProcessEnv.VITE_OPENROUTER_KEY === 'string' && safeProcessEnv.VITE_OPENROUTER_KEY.trim()) {
-    openRouterKeys.push(safeProcessEnv.VITE_OPENROUTER_KEY.trim());
-  }
-  if (safeProcessEnv.OPENROUTER_API_KEY && typeof safeProcessEnv.OPENROUTER_API_KEY === 'string' && safeProcessEnv.OPENROUTER_API_KEY.trim()) {
-    openRouterKeys.push(safeProcessEnv.OPENROUTER_API_KEY.trim());
-  }
+  try {
+    const orf5 = cleanKey(import.meta.env.VITE_OPENROUTER_KEY);
+    if (orf5) openRouterKeys.push(orf5);
+  } catch (e) {}
 
   // 3. Parse DeepInfra Keys: import.meta.env.VITE_DEEPINFRA_API_KEY_1 to import.meta.env.VITE_DEEPINFRA_API_KEY_8
   for (let i = 1; i <= 8; i++) {
+    const k1 = cleanKey(safeProcessEnv[`DEEPINFRA_API_KEY_${i}`]);
+    if (k1) deepInfraKeys.push(k1);
+
+    const k2 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`]);
+    if (k2) deepInfraKeys.push(k2);
+
+    const k3 = cleanKey(safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`]);
+    if (k3) deepInfraKeys.push(k3);
+
     try {
-      const k1 = import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`];
-      if (k1 && typeof k1 === 'string' && k1.trim()) deepInfraKeys.push(k1.trim());
+      const k4 = cleanKey(import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`]);
+      if (k4) deepInfraKeys.push(k4);
     } catch (e) {}
+
     try {
-      const k2 = import.meta.env[`VITE_DEEPINFRA_KEY_${i}`];
-      if (k2 && typeof k2 === 'string' && k2.trim()) deepInfraKeys.push(k2.trim());
+      const k5 = cleanKey(import.meta.env[`VITE_DEEPINFRA_KEY_${i}`]);
+      if (k5) deepInfraKeys.push(k5);
     } catch (e) {}
-
-    const kp1 = safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`];
-    if (kp1 && typeof kp1 === 'string' && kp1.trim()) deepInfraKeys.push(kp1.trim());
-
-    const kp2 = safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`];
-    if (kp2 && typeof kp2 === 'string' && kp2.trim()) deepInfraKeys.push(kp2.trim());
-
-    const kp3 = safeProcessEnv[`DEEPINFRA_API_KEY_${i}`];
-    if (kp3 && typeof kp3 === 'string' && kp3.trim()) deepInfraKeys.push(kp3.trim());
   }
 
   // Single default fallback DeepInfra keys
+  const dif1 = cleanKey(safeProcessEnv.DEEPINFRA_API_KEY);
+  if (dif1) deepInfraKeys.push(dif1);
+  const dif2 = cleanKey(safeProcessEnv.VITE_DEEPINFRA_API_KEY);
+  if (dif2) deepInfraKeys.push(dif2);
+  const dif3 = cleanKey(safeProcessEnv.VITE_DEEPINFRA_KEY);
+  if (dif3) deepInfraKeys.push(dif3);
   try {
-    if (import.meta.env.VITE_DEEPINFRA_API_KEY && typeof import.meta.env.VITE_DEEPINFRA_API_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_API_KEY.trim()) {
-      deepInfraKeys.push(import.meta.env.VITE_DEEPINFRA_API_KEY.trim());
-    }
-    if (import.meta.env.VITE_DEEPINFRA_KEY && typeof import.meta.env.VITE_DEEPINFRA_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_KEY.trim()) {
-      deepInfraKeys.push(import.meta.env.VITE_DEEPINFRA_KEY.trim());
-    }
+    const dif4 = cleanKey(import.meta.env.VITE_DEEPINFRA_API_KEY);
+    if (dif4) deepInfraKeys.push(dif4);
+  } catch (e) {}
+  try {
+    const dif5 = cleanKey(import.meta.env.VITE_DEEPINFRA_KEY);
+    if (dif5) deepInfraKeys.push(dif5);
   } catch (e) {}
 
-  if (safeProcessEnv.VITE_DEEPINFRA_API_KEY && typeof safeProcessEnv.VITE_DEEPINFRA_API_KEY === 'string' && safeProcessEnv.VITE_DEEPINFRA_API_KEY.trim()) {
-    deepInfraKeys.push(safeProcessEnv.VITE_DEEPINFRA_API_KEY.trim());
-  }
-  if (safeProcessEnv.VITE_DEEPINFRA_KEY && typeof safeProcessEnv.VITE_DEEPINFRA_KEY === 'string' && safeProcessEnv.VITE_DEEPINFRA_KEY.trim()) {
-    deepInfraKeys.push(safeProcessEnv.VITE_DEEPINFRA_KEY.trim());
-  }
-  if (safeProcessEnv.DEEPINFRA_API_KEY && typeof safeProcessEnv.DEEPINFRA_API_KEY === 'string' && safeProcessEnv.DEEPINFRA_API_KEY.trim()) {
-    deepInfraKeys.push(safeProcessEnv.DEEPINFRA_API_KEY.trim());
-  }
-
-  // 4. Parse Groq Keys: Keep original mappings for UI placeholders but exclude them from active interleaved picker if depleted
+  // 4. Parse Groq Keys (Exhibition - DO NOT leak into active loop if empty)
   for (let i = 1; i <= 10; i++) {
+    const k1 = cleanKey(safeProcessEnv[`GROQ_API_KEY_${i}`]);
+    if (k1) groqKeysRaw.push(k1);
+
+    const k2 = cleanKey(safeProcessEnv[`VITE_GROQ_API_KEY_${i}`]);
+    if (k2) groqKeysRaw.push(k2);
+
+    const k3 = cleanKey(safeProcessEnv[`VITE_GROQ_KEY_${i}`]);
+    if (k3) groqKeysRaw.push(k3);
+
     try {
-      const k1 = import.meta.env[`VITE_GROQ_API_KEY_${i}`];
-      if (k1 && typeof k1 === 'string' && k1.trim()) groqKeysRaw.push(k1.trim());
+      const k4 = cleanKey(import.meta.env[`VITE_GROQ_API_KEY_${i}`]);
+      if (k4) groqKeysRaw.push(k4);
     } catch (e) {}
+
     try {
-      const k2 = import.meta.env[`VITE_GROQ_KEY_${i}`];
-      if (k2 && typeof k2 === 'string' && k2.trim()) groqKeysRaw.push(k2.trim());
+      const k5 = cleanKey(import.meta.env[`VITE_GROQ_KEY_${i}`]);
+      if (k5) groqKeysRaw.push(k5);
     } catch (e) {}
-
-    const kp1 = safeProcessEnv[`VITE_GROQ_API_KEY_${i}`];
-    if (kp1 && typeof kp1 === 'string' && kp1.trim()) groqKeysRaw.push(kp1.trim());
-
-    const kp2 = safeProcessEnv[`VITE_GROQ_KEY_${i}`];
-    if (kp2 && typeof kp2 === 'string' && kp2.trim()) groqKeysRaw.push(kp2.trim());
-
-    const kp3 = safeProcessEnv[`GROQ_API_KEY_${i}`];
-    if (kp3 && typeof kp3 === 'string' && kp3.trim()) groqKeysRaw.push(kp3.trim());
   }
-
+  // Fallbacks
+  const grf1 = cleanKey(safeProcessEnv.GROQ_API_KEY);
+  if (grf1) groqKeysRaw.push(grf1);
+  const grf2 = cleanKey(safeProcessEnv.VITE_GROQ_API_KEY);
+  if (grf2) groqKeysRaw.push(grf2);
+  const grf3 = cleanKey(safeProcessEnv.VITE_GROQ_KEY);
+  if (grf3) groqKeysRaw.push(grf3);
   try {
-    if (import.meta.env.VITE_GROQ_API_KEY && typeof import.meta.env.VITE_GROQ_API_KEY === 'string' && import.meta.env.VITE_GROQ_API_KEY.trim()) {
-      groqKeysRaw.push(import.meta.env.VITE_GROQ_API_KEY.trim());
-    }
-    if (import.meta.env.VITE_GROQ_KEY && typeof import.meta.env.VITE_GROQ_KEY === 'string' && import.meta.env.VITE_GROQ_KEY.trim()) {
-      groqKeysRaw.push(import.meta.env.VITE_GROQ_KEY.trim());
-    }
+    const grf4 = cleanKey(import.meta.env.VITE_GROQ_API_KEY);
+    if (grf4) groqKeysRaw.push(grf4);
   } catch (e) {}
-  if (safeProcessEnv.VITE_GROQ_API_KEY && typeof safeProcessEnv.VITE_GROQ_API_KEY === 'string' && safeProcessEnv.VITE_GROQ_API_KEY.trim()) {
-    groqKeysRaw.push(safeProcessEnv.VITE_GROQ_API_KEY.trim());
-  }
-  if (safeProcessEnv.VITE_GROQ_KEY && typeof safeProcessEnv.VITE_GROQ_KEY === 'string' && safeProcessEnv.VITE_GROQ_KEY.trim()) {
-    groqKeysRaw.push(safeProcessEnv.VITE_GROQ_KEY.trim());
-  }
-  if (safeProcessEnv.GROQ_API_KEY && typeof safeProcessEnv.GROQ_API_KEY === 'string' && safeProcessEnv.GROQ_API_KEY.trim()) {
-    groqKeysRaw.push(safeProcessEnv.GROQ_API_KEY.trim());
-  }
+  try {
+    const grf5 = cleanKey(import.meta.env.VITE_GROQ_KEY);
+    if (grf5) groqKeysRaw.push(grf5);
+  } catch (e) {}
 
-  // Ultra-Strict Cleansing (Anti-Undefined Guard)
+  // Ultra-Strict Cleansing (Anti-Undefined and Pattern Filtering)
   const validOpenRouter = Array.from(new Set(openRouterKeys))
-    .map(k => k.trim())
-    .filter(k => k && k.startsWith("sk-or-") && k !== "undefined" && k !== "null");
+    .filter(k => k && k.startsWith("sk-or-"));
 
   const validGemini = Array.from(new Set(geminiKeysRaw))
-    .map(k => k.trim())
-    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+    .filter(k => k && k !== "");
 
   const validDeepInfra = Array.from(new Set(deepInfraKeys))
-    .map(k => k.trim())
-    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+    .filter(k => k && k !== "");
 
-  const validGroq = Array.from(new Set(groqKeysRaw))
-    .map(k => k.trim())
-    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+  // "DO NOT leak them into active loop since they are empty"
+  // Keep empty to avoid leakage as specified
+  const validGroq: string[] = [];
+
+  // Switch-OFF Guard: Read current active UI state variables / toggles in real-time
+  let isGeminiEnabled = apiProviderConfig.gemini;
+  let isOpenRouterEnabled = apiProviderConfig.openRouter;
+  let isDeepInfraEnabled = apiProviderConfig.deepInfra;
+
+  try {
+    const stored = localStorage.getItem("henosis_provider_config");
+    if (stored) {
+      const storedConfig = JSON.parse(stored);
+      if (storedConfig.gemini !== undefined) isGeminiEnabled = !!storedConfig.gemini;
+      if (storedConfig.openRouter !== undefined) isOpenRouterEnabled = !!storedConfig.openRouter;
+      if (storedConfig.deepInfra !== undefined) isDeepInfraEnabled = !!storedConfig.deepInfra;
+    }
+  } catch (e) {
+    // ignore parsing errors
+  }
 
   const lists: { provider: "openRouter" | "gemini" | "groq" | "deepInfra"; keys: string[] }[] = [];
 
-  if (apiProviderConfig.openRouter && validOpenRouter.length > 0) {
+  if (isOpenRouterEnabled && validOpenRouter.length > 0) {
     lists.push({ provider: "openRouter", keys: validOpenRouter });
   }
-  if (apiProviderConfig.gemini && validGemini.length > 0) {
+  if (isGeminiEnabled && validGemini.length > 0) {
     lists.push({ provider: "gemini", keys: validGemini });
   }
-  if (apiProviderConfig.deepInfra && validDeepInfra.length > 0) {
+  if (isDeepInfraEnabled && validDeepInfra.length > 0) {
     lists.push({ provider: "deepInfra", keys: validDeepInfra });
-  }
-  if (apiProviderConfig.groq && validGroq.length > 0) {
-    lists.push({ provider: "groq", keys: validGroq });
   }
 
   if (lists.length === 0) return [];
 
+  // Cross-Provider Interleaved Round-Robin Matrix
   const interleavedPool: InterleavedKey[] = [];
   const maxLen = Math.max(...lists.map(list => list.keys.length));
 
@@ -948,7 +975,7 @@ export function getInterleavedPool(): InterleavedKey[] {
     }
   }
 
-  // Final validation pass
+  // KEY FILTERING MANDATE: picker MUST only yield active keys where Date.now() > cooldownUntil and status is not DEPLETED
   const cleanInterleavedPool = interleavedPool.filter(item => {
     if (!item || !item.key || typeof item.key !== 'string') return false;
     const trimKey = item.key.trim();
@@ -957,7 +984,6 @@ export function getInterleavedPool(): InterleavedKey[] {
     return true;
   });
 
-  // KEY FILTERING MANDATE: picker MUST only yield active keys where Date.now() > cooldownUntil and status is not DEPLETED
   return cleanInterleavedPool.filter(item => {
     const state = keyRegistry.get(item.key);
     if (!state) return true;
@@ -969,10 +995,10 @@ export function getInterleavedPool(): InterleavedKey[] {
 // Direct Call implementations using raw provider HTTP Endpoints bypasses server proxies
 async function fetchOpenRouterDirect(apiKey: string, model: string, messages: any[], isJsonExpected: boolean): Promise<string> {
   const bodyObj: any = {
-    model: model || "meta-llama/llama-3-8b-instruct:free",
+    model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
     messages,
     temperature: 0.1,
-    max_tokens: 4096
+    max_tokens: 4096 // Force-set to 4096
   };
   
   if (isJsonExpected) {
@@ -980,7 +1006,7 @@ async function fetchOpenRouterDirect(apiKey: string, model: string, messages: an
   }
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -989,7 +1015,7 @@ async function fetchOpenRouterDirect(apiKey: string, model: string, messages: an
         "X-Title": "Henosis Learning App"
       },
       body: JSON.stringify(bodyObj)
-    });
+    }, 45000);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -1002,6 +1028,10 @@ async function fetchOpenRouterDirect(apiKey: string, model: string, messages: an
     if (!content) throw new Error("Empty content returned from OpenRouter direct endpoint.");
     return content;
   } catch (err: any) {
+    if (err.name === "AbortError") {
+      handleKeyError(apiKey, "openRouter", 408, "Request Timeout 45s");
+      throw new Error("Request Timeout 45s on OpenRouter Direct");
+    }
     if (err.message && !err.message.includes("OpenRouter Direct failure")) {
       handleKeyError(apiKey, "openRouter", 0, err.message || "");
     }
@@ -1028,7 +1058,7 @@ async function fetchGeminiDirect(apiKey: string, messages: any[], isJsonExpected
     contents,
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 4096
+      maxOutputTokens: 4096 // Force-set to 4096
     }
   };
 
@@ -1046,13 +1076,13 @@ async function fetchGeminiDirect(apiKey: string, messages: any[], isJsonExpected
     const model = "gemini-1.5-flash"; // stable, efficient flash model
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
-    });
+    }, 45000);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -1065,6 +1095,10 @@ async function fetchGeminiDirect(apiKey: string, messages: any[], isJsonExpected
     if (!content) throw new Error("Empty content returned from Gemini direct endpoint.");
     return content;
   } catch (err: any) {
+    if (err.name === "AbortError") {
+      handleKeyError(apiKey, "gemini", 408, "Request Timeout 45s");
+      throw new Error("Request Timeout 45s on Gemini Direct");
+    }
     if (err.message && !err.message.includes("Gemini Direct failure")) {
       handleKeyError(apiKey, "gemini", 0, err.message || "");
     }
@@ -1077,7 +1111,7 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
     model: "llama3-8b-8192",
     messages,
     temperature: 0.1,
-    max_tokens: 4096
+    max_tokens: 4096 // Force-set to 4096
   };
   
   if (isJsonExpected) {
@@ -1085,14 +1119,14 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
   }
 
   try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify(bodyObj)
-    });
+    }, 45000);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -1105,6 +1139,10 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
     if (!content) throw new Error("Empty content returned from Groq direct endpoint.");
     return content;
   } catch (err: any) {
+    if (err.name === "AbortError") {
+      handleKeyError(apiKey, "groq", 408, "Request Timeout 45s");
+      throw new Error("Request Timeout 45s on Groq Direct");
+    }
     if (err.message && !err.message.includes("Groq Direct failure")) {
       handleKeyError(apiKey, "groq", 0, err.message || "");
     }
@@ -1117,7 +1155,7 @@ async function fetchDeepInfraDirect(apiKey: string, messages: any[], isJsonExpec
     model: "meta-llama/Meta-Llama-3-8B-Instruct",
     messages,
     temperature: 0.1,
-    max_tokens: 4096
+    max_tokens: 4096 // Force-set to 4096
   };
   
   if (isJsonExpected) {
@@ -1125,14 +1163,14 @@ async function fetchDeepInfraDirect(apiKey: string, messages: any[], isJsonExpec
   }
 
   try {
-    const response = await fetch("https://api.deepinfra.com/v1/openai/chat/completions", {
+    const response = await fetchWithTimeout("https://api.deepinfra.com/v1/openai/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify(bodyObj)
-    });
+    }, 45000);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -1145,6 +1183,10 @@ async function fetchDeepInfraDirect(apiKey: string, messages: any[], isJsonExpec
     if (!content) throw new Error("Empty content returned from DeepInfra direct endpoint.");
     return content;
   } catch (err: any) {
+    if (err.name === "AbortError") {
+      handleKeyError(apiKey, "deepInfra", 408, "Request Timeout 45s");
+      throw new Error("Request Timeout 45s on DeepInfra Direct");
+    }
     if (err.message && !err.message.includes("DeepInfra Direct failure")) {
       handleKeyError(apiKey, "deepInfra", 0, err.message || "");
     }
@@ -1230,6 +1272,7 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
           return mappedRes;
         }
       } catch (err: any) {
+        console.warn("Skipping invalid key slot");
         console.warn(`[apiClient Rotation] Rotation failure on provider ${item.provider} on attempt ${attempts}. Error: ${err.message || err}. Incrementing pointer immediately.`);
         
         if (typeof window !== "undefined") {
@@ -1241,16 +1284,12 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
           }));
         }
 
-        // Increment the interleaved key pointer on EVERY failed attempt
+        // Increment the interleaved key pointer on EVERY failed attempt to advance immediately
         globalPoolIndex++;
         lastRotationError = err;
 
-        // Exponential backoff with jitter delay
-        if (attempts < maxAttempts) {
-          const delay = Math.min(10000, Math.pow(2, attempts) * 1000) + (Math.random() * 1000);
-          console.log(`[apiClient Rotation] [Jitter Backoff] Waiting ${delay.toFixed(0)}ms before next rotation attempt...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        // "and retry the chunk processing immediately" -> very small delay to avoid extreme tight infinite CPU loops, but essentially immediate retry
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 

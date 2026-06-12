@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { store, Deck } from "../lib/store";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { Plus, Play, TrendingUp, Users, Target, BookOpen, BrainCircuit, Activity, Flame, ArrowLeft, CheckCircle2, XCircle, ArrowRight, Loader2, Trophy, Sparkles, Maximize2, Minimize2, Bell, BellOff, BellRing, Settings, AlertTriangle, Trash2, Snowflake, Volume2, VolumeX, Clock, Network, Award, Bot, User, Crown, ChevronUp, ChevronDown, Minus, Shield, RefreshCw, Heart, LogOut, Bug, Type, Library, Camera, Edit3 } from "lucide-react";
+import { Plus, Play, TrendingUp, Users, Target, BookOpen, BrainCircuit, Activity, Flame, ArrowLeft, CheckCircle2, XCircle, ArrowRight, Loader2, Trophy, Sparkles, Maximize2, Minimize2, Bell, BellOff, BellRing, Settings, AlertTriangle, Trash2, Snowflake, Volume2, VolumeX, Clock, Network, Award, Bot, User, Crown, ChevronUp, ChevronDown, Minus, Shield, RefreshCw, Heart, LogOut, Bug, Type, Library, Camera, Edit3, HelpCircle } from "lucide-react";
 import { MarcusAureliusIcon } from "../components/MarcusAureliusIcon";
 import { cn } from "../lib/utils";
 import { safeRequest } from "../utils/apiClient";
@@ -27,6 +27,8 @@ import WeeklyStudyAnalyticsModal from "../components/WeeklyStudyAnalyticsModal";
 import { useTheme } from "../components/ThemeProvider";
 import { CyberCard } from "../components/CyberCard";
 import { CinematicContainer } from "../components/CinematicContainer";
+import { InteractiveTutorial } from "../components/InteractiveTutorial";
+import { ServiceMonitor } from "./AdminKeysDashboard";
 
 import { DeckList } from "../components/DeckList";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -171,6 +173,14 @@ export default function StudentDashboard() {
   }, [user?.points, user?.level]);
 
   const [quote] = useState(() => MOTIVATION_QUOTES[Math.floor(Math.random() * MOTIVATION_QUOTES.length)]);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    const hasRun = localStorage.getItem("hasRunTutorial");
+    if (hasRun !== "true") {
+      setShowTutorial(true);
+    }
+  }, []);
   
   const [activeTab, setActiveTab] = useState<"study" | "ranking" | "quiz" | "mock_exam_setup" | "settings" | "history" | "skill_tree" | "all_sets" | "groups" | "achievements" | "profile" | "create_deck" | "cyberpunk">("study");
   const [profileNameInput, setProfileNameInput] = useState("");
@@ -1453,6 +1463,7 @@ export default function StudentDashboard() {
         exit={{ opacity: 0, y: -20, filter: "blur(4px)" }}
         transition={{ duration: 0.3 }}
         className="glass p-4 sm:p-8 rounded-2xl relative overflow-hidden"
+        data-tour="step-1"
       >
         <div className="absolute top-0 right-0 p-8 opacity-10">
           <Target className="w-48 h-48" />
@@ -2324,6 +2335,26 @@ export default function StudentDashboard() {
                💡 Kỷ lục trích xuất 1000 thẻ học siêu tốc nhờ Concurrency Pool 8 Keys xoay vòng cực mượt!
              </div>
              <DocumentConverter />
+
+             <div data-tour="step-2" className="mt-8 pt-8 border-t border-stone-200 dark:border-zinc-800/80 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-stone-50 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 p-4 rounded-2xl">
+                   <div>
+                      <h3 className="text-sm font-extrabold text-stone-800 dark:text-stone-100 flex items-center gap-2">
+                         <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+                         Cổng Giám Sát API Sức Khỏe Thực (Real-time Key Telemetry)
+                      </h3>
+                      <p className="text-xs text-stone-500 mt-1">
+                         Hiển thị chi tiết trạng thái hoạt động, tỷ lệ xoay vòng và hệ số tải của từng cụm provider (Gemini, OpenRouter, DeepInfra).
+                      </p>
+                   </div>
+                   <div className="flex items-center gap-1.5 self-end md:self-auto uppercase tracking-wider font-mono text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold px-2.5 py-1 rounded-full border border-emerald-500/20 shadow-sm animate-pulse">
+                      Status: Live Monitor
+                   </div>
+                </div>
+                <div className="rounded-2xl border border-stone-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/20 p-4 md:p-6 shadow-sm">
+                   <ServiceMonitor adminKey={(import.meta as any).env?.VITE_ADMIN_KEY || "seneca"} />
+                </div>
+             </div>
           </div>
         </motion.div>
       )}
@@ -3940,6 +3971,30 @@ export default function StudentDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <InteractiveTutorial 
+        isOpen={showTutorial} 
+        onClose={() => {
+          localStorage.setItem("hasRunTutorial", "true");
+          setShowTutorial(false);
+        }} 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+      />
+
+      {/* HELP / RESTART TOUR FLOATING BUTTON */}
+      <button
+        onClick={() => {
+          localStorage.removeItem("hasRunTutorial");
+          setActiveTab("create_deck"); // Go directly to create_deck to let user see step 2, 3, 4, 5
+          setShowTutorial(true);
+        }}
+        className="fixed bottom-6 right-6 z-40 p-3 bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-550 text-stone-950 dark:text-stone-950 rounded-full shadow-[0_4px_20px_rgba(234,179,8,0.4)] hover:scale-110 active:scale-95 transition-all duration-200 flex items-center gap-2 font-black text-xs border border-yellow-400"
+        title="Xem hướng dẫn nhanh sử dụng hệ thống"
+      >
+        <HelpCircle className="w-5 h-5 animate-bounce" />
+        <span className="hidden md:inline">Hướng dẫn nhanh</span>
+      </button>
 
     </div>
   );

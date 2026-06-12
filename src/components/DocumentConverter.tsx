@@ -1698,7 +1698,7 @@ export default function DocumentConverter() {
 
       <div className="grid md:grid-cols-2 gap-6 items-start">
         {/* Left Side: Input Form zone */}
-        <div className="space-y-4">
+        <div data-tour="step-4" className="space-y-4">
           
           {activeImportTab === "file" && (
              <div 
@@ -1842,7 +1842,7 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
 
           {/* Slicing sliding-window settings */}
           {activeImportTab !== "json" && (
-             <div className="p-4 bg-stone-50 dark:bg-zinc-900/35 border border-stone-200/60 dark:border-zinc-800/70 rounded-2xl space-y-3.5">
+             <div data-tour="step-3" className="p-4 bg-stone-50 dark:bg-zinc-900/35 border border-stone-200/60 dark:border-zinc-800/70 rounded-2xl space-y-3.5">
                 {/* Concurrency speed-up thread controller */}
                 <div className="pb-3 border-b border-stone-250/65 dark:border-zinc-800 flex flex-col gap-1.5 animate-in fade-in duration-300">
                   <label className="block text-[9px] uppercase font-black text-stone-500 flex items-center gap-1 leading-tight">
@@ -2184,8 +2184,8 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
       </div>
 
       {/* Real-time System Progress Logs Panel (Throttled 60FPS) */}
-      {(progressLogs.length > 0 || isProcessing) && (
-         <div className={cn(
+      {(progressLogs.length > 0 || isProcessing || (typeof window !== "undefined" && !localStorage.getItem('hasRunTutorial'))) && (
+         <div data-tour="step-5" className={cn(
            "p-4 bg-stone-900 border border-stone-800 rounded-2xl text-left font-mono text-zinc-300 space-y-2 overflow-y-auto select-text scrollbar-thin shadow-2xl relative animate-in fade-in duration-300 transition-all",
            isLogExpanded ? "max-h-[500px] min-h-[300px] h-[400px] md:h-[500px] md:col-span-2 border-yellow-500/50 bg-stone-950 shadow-yellow-500/5" : "max-h-44 min-h-[90px]",
            logFontSize === "small" ? "text-[10px]" : logFontSize === "medium" ? "text-[12px] sm:text-xs" : "text-[14px] sm:text-sm font-semibold"
@@ -2196,7 +2196,13 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
                   <button 
                     type="button"
                     onClick={() => {
-                      const rawText = allLogsRef.current.join("\n");
+                      const logList = progressLogs.length > 0 ? progressLogs : [
+                        "⏳ [SYSTEM] CoStudy Ingestion Engine stands by...",
+                        "🟢 [CLUSTER] Interleaved hot provider pools online (Round-Robin ready)",
+                        "⚙️ [THREAD] Workers: 2 concurrent threads initialized",
+                        "💡 [TUTORIAL] Quăng tài liệu bất kỳ vào Dropzone bên trên để trải nghiệm tự động bóc tách từ vựng đỉnh cao!"
+                      ];
+                      const rawText = logList.join("\n");
                       const blob = new Blob([rawText], { type: "text/plain;charset=utf-8" });
                       const url = URL.createObjectURL(blob);
                       const link = document.createElement("a");
@@ -2229,7 +2235,12 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
                </div>
             </div>
             <div className="flex flex-col gap-1 pr-1 overscroll-contain">
-              {progressLogs.slice(isLogExpanded ? -100 : -25).map((log, idx) => {
+              {(progressLogs.length > 0 ? progressLogs : [
+                "⏳ [SYSTEM] CoStudy Ingestion Engine stands by...",
+                "🟢 [CLUSTER] Interleaved hot provider pools online (Round-Robin ready)",
+                "⚙️ [THREAD] Workers: 2 concurrent threads initialized",
+                "💡 [TUTORIAL] Quăng tài liệu bất kỳ vào Dropzone bên trên để trải nghiệm tự động bóc tách từ vựng đỉnh cao!"
+              ]).slice(isLogExpanded ? -100 : -25).map((log, idx) => {
                 let colorClass = "text-stone-300";
                 if (log.includes("✅") || log.includes("✨") || log.includes("🎉")) colorClass = "text-emerald-450 dark:text-emerald-400 font-bold";
                 else if (log.includes("❌") || log.includes("🚨")) colorClass = "text-rose-450 dark:text-rose-400 font-black";
