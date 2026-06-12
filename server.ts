@@ -253,6 +253,7 @@ const rotationLogs: RotationLog[] = [];
 let isOpenRouterEnabled = true;
 let isGroqEnabled = true;
 let isGeminiEnabled = true;
+let isDeepInfraEnabled = true;
 let lastConfigFetchTime = 0;
 
 async function refreshApiToggles() {
@@ -269,12 +270,14 @@ async function refreshApiToggles() {
           if (data.openRouterEnabled !== undefined) isOpenRouterEnabled = data.openRouterEnabled;
           if (data.groqEnabled !== undefined) isGroqEnabled = data.groqEnabled;
           if (data.geminiEnabled !== undefined) isGeminiEnabled = data.geminiEnabled;
+          if (data.deepInfraEnabled !== undefined) isDeepInfraEnabled = data.deepInfraEnabled;
         }
       } else {
         await db.collection("system_config").doc("api_toggles").set({
           openRouterEnabled: true,
           groqEnabled: true,
           geminiEnabled: true,
+          deepInfraEnabled: true,
           updatedAt: new Date().toISOString()
         });
       }
@@ -1984,7 +1987,8 @@ ${conciseModeGuidance}`;
    });
 
    // API Toggle States Endpoints
-   app.get("/api/admin/api-toggles", async (req, res) => {
+   // API Toggle States Endpoints (Public GET for dynamic client-side synchronization, safe state signals only)
+   app.get("/api/admin/api-toggles", async (req, res) => { await refreshApiToggles(); return res.json({ groqEnabled: isGroqEnabled, openRouterEnabled: isOpenRouterEnabled, geminiEnabled: isGeminiEnabled, deepInfraEnabled: isDeepInfraEnabled }); }); app.get("/api/admin/api-toggles-unused", async (req, res) => {
      const adminKey = req.headers["x-admin-key"];
      if (adminKey !== process.env.VITE_ADMIN_KEY) {
        return res.status(403).json({ error: "Thao tác không hợp lệ. Sai admin key." });
@@ -1998,6 +2002,39 @@ ${conciseModeGuidance}`;
    });
 
    app.post("/api/admin/api-toggles", express.json(), async (req, res) => {
+      const adminKey = req.headers["x-admin-key"];
+      if (adminKey !== process.env.VITE_ADMIN_KEY) {
+        return res.status(403).json({ error: "Thao tác không hợp lệ. Sai admin key." });
+      }
+      const { groqEnabled, openRouterEnabled, geminiEnabled, deepInfraEnabled } = req.body;
+      if (openRouterEnabled !== undefined) isOpenRouterEnabled = !!openRouterEnabled;
+      if (groqEnabled !== undefined) isGroqEnabled = !!groqEnabled;
+      if (geminiEnabled !== undefined) isGeminiEnabled = !!geminiEnabled;
+      if (deepInfraEnabled !== undefined) isDeepInfraEnabled = !!deepInfraEnabled;
+      
+      try {
+        if (admin.apps.length > 0) {
+          const db = admin.firestore();
+          await db.collection("system_config").doc("api_toggles").set({
+            openRouterEnabled: isOpenRouterEnabled,
+            groqEnabled: isGroqEnabled,
+            geminiEnabled: isGeminiEnabled,
+            deepInfraEnabled: isDeepInfraEnabled,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (err) {
+        console.error("[API Toggles] Failed to save api_toggles to Firestore:", err);
+      }
+      return res.json({ 
+        success: true, 
+        groqEnabled: isGroqEnabled, 
+        openRouterEnabled: isOpenRouterEnabled,
+        geminiEnabled: isGeminiEnabled,
+        deepInfraEnabled: isDeepInfraEnabled
+      });
+    });
+    app.post("/api/admin/api-toggles-unused", express.json(), async (req, res) => {
      const adminKey = req.headers["x-admin-key"];
      if (adminKey !== process.env.VITE_ADMIN_KEY) {
        return res.status(403).json({ error: "Thao tác không hợp lệ. Sai admin key." });

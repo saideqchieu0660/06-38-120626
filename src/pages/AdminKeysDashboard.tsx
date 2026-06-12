@@ -196,22 +196,21 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
 
   const fetchToggles = async () => {
     try {
-      const res = await fetch("/api/admin/api-toggles", {
-        headers: { "x-admin-key": adminKey }
-      });
+      const res = await fetch("/api/admin/api-toggles");
       if (res.ok) {
         const data = await res.json();
         setOpenRouterEnabled(data.openRouterEnabled !== false);
         setGroqEnabled(data.groqEnabled !== false);
         setGeminiEnabled(data.geminiEnabled !== false);
+        setDeepInfraEnabled(data.deepInfraEnabled !== false);
         
         updateApiProviderConfig({
           openRouter: data.openRouterEnabled !== false,
           gemini: data.geminiEnabled !== false,
-          groq: data.groqEnabled !== false
+          groq: data.groqEnabled !== false,
+          deepInfra: data.deepInfraEnabled !== false
         });
       }
-      setDeepInfraEnabled(apiProviderConfig.deepInfra);
       loadDeepInfraKeys();
     } catch (err) {
       console.error("Lỗi khi tải trạng thái API toggles:", err);
@@ -219,16 +218,17 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
   };
 
   const handleToggleChange = async (type: "openrouter" | "gemini" | "groq" | "deepinfra", newValue: boolean) => {
+    const isSysAdmin = store.getCurrentUser()?.role === "admin" || store.getCurrentUser()?.role === "Admin";
+    if (!isSysAdmin) {
+      alert("Mày không phải Admin hệ thống, không có quyền bật tắt bộ ngắt mạch API toàn server đâu nhé!");
+      return;
+    }
+
     setIsUpdatingToggles(true);
     if (type === "openrouter") setOpenRouterEnabled(newValue);
     if (type === "gemini") setGeminiEnabled(newValue);
     if (type === "groq") setGroqEnabled(newValue);
-    if (type === "deepinfra") {
-      setDeepInfraEnabled(newValue);
-      updateApiProviderConfig({ deepInfra: newValue });
-      setIsUpdatingToggles(false);
-      return;
-    }
+    if (type === "deepinfra") setDeepInfraEnabled(newValue);
 
     try {
       const res = await fetch("/api/admin/api-toggles", {
@@ -240,7 +240,8 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
         body: JSON.stringify({
           openRouterEnabled: type === "openrouter" ? newValue : openRouterEnabled,
           geminiEnabled: type === "gemini" ? newValue : geminiEnabled,
-          groqEnabled: type === "groq" ? newValue : groqEnabled
+          groqEnabled: type === "groq" ? newValue : groqEnabled,
+          deepInfraEnabled: type === "deepinfra" ? newValue : deepInfraEnabled
         })
       });
       if (!res.ok) {
@@ -250,17 +251,20 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
       setOpenRouterEnabled(data.openRouterEnabled !== false);
       setGroqEnabled(data.groqEnabled !== false);
       setGeminiEnabled(data.geminiEnabled !== false);
+      setDeepInfraEnabled(data.deepInfraEnabled !== false);
       
       updateApiProviderConfig({
         openRouter: data.openRouterEnabled !== false,
         gemini: data.geminiEnabled !== false,
-        groq: data.groqEnabled !== false
+        groq: data.groqEnabled !== false,
+        deepInfra: data.deepInfraEnabled !== false
       });
     } catch (err: any) {
       alert("Lỗi cập nhật Switch: " + err.message);
       if (type === "openrouter") setOpenRouterEnabled(!newValue);
       if (type === "gemini") setGeminiEnabled(!newValue);
       if (type === "groq") setGroqEnabled(!newValue);
+      if (type === "deepinfra") setDeepInfraEnabled(!newValue);
     } finally {
       setIsUpdatingToggles(false);
     }

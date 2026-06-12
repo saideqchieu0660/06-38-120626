@@ -159,7 +159,7 @@ function cleanJsonResponse(text: string): string {
 }
 
 function buildGroqPayload(url: string, parsedBody: any): { model: string; messages: any[] } {
-  const model = "google/gemma-2-9b-it:free"; // Defaulting OpenRouter target
+  const model = "microsoft/phi-3-medium-128k-instruct:free"; // Defaulting OpenRouter target
 
   let messages: any[] = [];
 
@@ -485,7 +485,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
+              model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
               messages,
               temperature: 0.7,
               max_tokens: 4096 // Force-set directly to 4096
@@ -523,7 +523,7 @@ async function fetchOpenRouterWithBackoff(model: string, messages: any[], attemp
               "X-Title": "Henosis Learning App"
             },
             body: JSON.stringify({
-              model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
+              model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
               messages,
               temperature: 0.7,
               max_tokens: 4096 // Force-set directly to 4096
@@ -679,6 +679,7 @@ async function syncProviderToggles() {
 
 if (typeof window !== "undefined") {
   setTimeout(syncProviderToggles, 1000);
+  setInterval(syncProviderToggles, 30000); // Periodically check for remote API circuit breaker flips from administrator
 }
 
 // Utility to parse environment keys, avoiding duplicates
@@ -995,7 +996,7 @@ export function getInterleavedPool(): InterleavedKey[] {
 // Direct Call implementations using raw provider HTTP Endpoints bypasses server proxies
 async function fetchOpenRouterDirect(apiKey: string, model: string, messages: any[], isJsonExpected: boolean): Promise<string> {
   const bodyObj: any = {
-    model: "google/gemma-2-9b-it:free", // Strictly upgraded to google/gemma-2-9b-it:free
+    model: "microsoft/phi-3-medium-128k-instruct:free", // Strictly updated to microsoft/phi-3-medium-128k-instruct:free
     messages,
     temperature: 0.1,
     max_tokens: 4096 // Force-set to 4096
@@ -1152,7 +1153,7 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
 
 async function fetchDeepInfraDirect(apiKey: string, messages: any[], isJsonExpected: boolean): Promise<string> {
   const bodyObj: any = {
-    model: "meta-llama/Meta-Llama-3-8B-Instruct",
+    model: "microsoft/Phi-3-mini-4k-instruct", // Strictly updated to the 100% serverless free model of DeepInfra for $0 tier
     messages,
     temperature: 0.1,
     max_tokens: 4096 // Force-set to 4096

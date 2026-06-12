@@ -65,6 +65,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const currentPath = location.pathname;
   const [user, setUser] = useState<User | null>(null);
+  const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [pulse, setPulse] = useState(false);
   const currentUserObj = store.getCurrentUser();
@@ -470,6 +471,38 @@ function Layout({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [user?.uid]);
 
+  useEffect(() => {
+    if (!user) {
+      setCurrentUserRank(null);
+      return;
+    }
+    let unsub = () => {};
+    const setupRankingListener = async () => {
+      try {
+        const { db } = await import("./lib/firebase");
+        const { collection, onSnapshot } = await import("firebase/firestore");
+        const usersCol = collection(db, "users");
+        unsub = onSnapshot(usersCol, (snapshot) => {
+          const usersList: any[] = [];
+          snapshot.forEach((doc) => {
+            usersList.push({ id: doc.id, ...doc.data() });
+          });
+          const sorted = usersList.sort((a, b) => (b.points || 0) - (a.points || 0));
+          const index = sorted.findIndex((u: any) => u.id === user.uid);
+          if (index !== -1) {
+            setCurrentUserRank(index + 1);
+          } else {
+            setCurrentUserRank(null);
+          }
+        });
+      } catch (e) {
+        console.error("Error setting up ranking snapshot listener inside App.tsx:", e);
+      }
+    };
+    setupRankingListener();
+    return () => unsub();
+  }, [user?.uid]);
+
   const handleLogout = async () => {
     try {
       // Clean up co-study room presence before losing auth context
@@ -594,10 +627,12 @@ function Layout({ children }: { children: React.ReactNode }) {
                       <UserIcon className="w-4 h-4" />
                     </div>
                   )}
-                  {/* Floating Yellow Badge above top right corner of avatar with number 1 */}
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-[9px] font-extrabold text-black border border-white dark:border-zinc-900 shadow-md animate-pulse z-10" title="1 thông báo">
-                    1
-                  </span>
+                  {/* Floating Yellow Badge above top right corner of avatar with true dynamically updated rank */}
+                  {currentUserRank !== null && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-[9px] font-extrabold text-black border border-white dark:border-zinc-900 shadow-md animate-pulse z-10" title={`Hạng ${currentUserRank} Tuần Này`}>
+                      {currentUserRank}
+                    </span>
+                  )}
                 </div>
                 <div className="hidden sm:flex flex-col text-left">
                   <span className="font-semibold text-xs md:text-sm text-stone-800 dark:text-stone-200 leading-none">
