@@ -61,7 +61,7 @@ interface QueuedRequest {
   reject: (reason?: any) => void;
 }
 
-const PARALLEL_LIMIT = 2; // Maximum concurrent pending calls from this client
+const PARALLEL_LIMIT = 2; // Maximum concurrent pending calls from this client (Tăng tốc - 2 luồng)
 const MIN_DELAY_BETWEEN_CALLS = 2500; // 2.5s base safety margin
 let activeRequests = 0;
 let lastCallTimestamp = 0;
@@ -168,7 +168,7 @@ function buildGroqPayload(url: string, parsedBody: any): { model: string; messag
 Hãy tạo một giáo án học tập tối ưu cho chủ đề: "${topic}".
 Giáo án cần đảm bảo đủ kiến thức sâu sắc, logic và dễ hiểu.
 KHÔNG sử dụng Markdown code block. TRẢ VỀ ĐÚNG MỘT OBJECT JSON DUY NHẤT.
-
+ 
 Định dạng JSON mẫu:
 {
   "roadmap": [
@@ -257,10 +257,10 @@ Bọc công thức Toán/Lý/Hóa bằng LaTeX (dấu $ hoặc $$). Chỉ trả 
     const prompt = `Bạn là một AI được thiết kế để tạo bài kiểm tra tự động từ các thẻ (flashcards) được cung cấp.
 Dữ liệu Flashcards:
 ${contextData}
-
+ 
 Yêu cầu: Hãy tạo một đề thi gồm ${count || 10} câu hỏi trắc nghiệm (Multiple Choice) từ các flashcards này. Mỗi thẻ có thể dùng để tạo câu hỏi về nội dung "front" hỏi "back" hoặc ngược lại, hoặc suy luận từ nội dung. Các lựa chọn sai (distractors) phải hợp lý và không quá dễ đoán. Đảo lộn vị trí đáp án đúng.
 ĐIỀU KIỆN TIÊN QUYẾT: Khi sinh ra các tùy chọn A, B, C, D cho câu hỏi trắc nghiệm, câu trả lời đúng PHẢI ĐƯỢC PHÂN PHỐI NGẪU NHIÊN hoàn toàn giữa 4 vị trí A, B, C, D đối với từng câu hỏi riêng biệt. Tuyệt đối không được cố định đáp án đúng vào bất kỳ một vị trí nào.
-
+ 
 BẮT BUỘC ĐỊNH DẠNG: Chỉ trả về ĐÚNG MỘT MẢNG JSON duy nhất, không markdown code block, không text thừa.
 Định dạng JSON:
 [
@@ -280,6 +280,7 @@ BẮT BUỘC ĐỊNH DẠNG: Chỉ trả về ĐÚNG MỘT MẢNG JSON duy nhấ
   } else if (url.includes("/api/automation/process-chunk")) {
     const { textChunk, isDegraded, targetMin = 4, targetMax = 15 } = parsedBody;
     const normalPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+ 
 
 Each flashcard object MUST have:
 - front: English word/phrase.
@@ -288,50 +289,50 @@ Each flashcard object MUST have:
 - back: Concise Vietnamese translation.
 - example: Illustrative English sentence with its Vietnamese translation in parentheses immediately following.
 - origin: The matching raw word, phrase or context from the original text chunk.
-
+ 
 STRICT CARD COUNT COHERENCE & LIMITS:
 - You MUST extract between ${targetMin} and ${targetMax} highly valuable vocabulary terms or phrases from the provided source text.
 - Do NOT generate fewer than ${targetMin} or more than ${targetMax} cards under any circumstances to keep output sizes deterministic and protect API bandwidth.
-
+ 
 SMART VOCABULARY YIELD & ACADEMIC BALANCE:
 1. RELAXED ACADEMIC FILTERING: Focus on selecting prominent nouns, verbs, adjectives, and adverbs that have educational or lexical value from the source text. Look for ANY core vocabulary words, useful academic collocations, or idiomatic expressions that would be beneficial for a student to study.
 2. MINIMUM YIELD GUARDRAIL: Analyze the provided text packet thoroughly. If the text contains readable English sentences or word lists, you MUST extract at least ${targetMin} useful vocabulary terms from it. Do not return an empty array [] unless the input string is completely devoid of English words.
 3. CRITICAL LINGUISTIC HYGIENE: While we want high selection yield, you are strictly FORBIDDEN from extracting pure machine or layout strings, such as standalone bracket tokens, single-character noise, or raw PDF/programming syntax markers (like "obj", "endobj", "stream", "endstream", "xref", "trailer", "startxref").
 4. STRICT CONTEXTUAL VERIFICATION: Avoid technical parameters, variable namespace tokens, or system property names being used as coding variables in the source text. Focus on genuine words used in human communication.
-
+ 
 Rule Checklist:
 1. Return ONLY a valid minified JSON array [].
 2. No markdown wrapper.
 3. Maintain maximum yield of legitimate advanced and useful vocabularies.
-
+ 
 Original Source Text:
 ${textChunk}`;
 
     const degradedPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
-
+ 
 Each flashcard object MUST have ONLY these critical fields:
 - front: English word/phrase.
 - ipa: Accurate IPA pronunciation.
 - wordForm: noun|verb|adjective|adverb|phrasal verb|idiom.
 - back: Concise Vietnamese translation.
-
+ 
 (IMPORTANT: Drop the heavy fields like 'example' and 'origin' entirely to prevent computation timeout. Do not include 'example' or 'origin' in the JSON return structure. Return ONLY fields: front, ipa, wordForm, back).
-
+ 
 STRICT CARD COUNT COHERENCE & LIMITS:
 - You MUST extract between ${targetMin} and ${targetMax} highly valuable vocabulary terms or phrases from the provided source text.
 - Do NOT generate fewer than ${targetMin} or more than ${targetMax} cards under any circumstances to keep output sizes deterministic and protect API bandwidth.
-
+ 
 SMART VOCABULARY YIELD & ACADEMIC BALANCE:
 1. RELAXED ACADEMIC FILTERING: Focus on selecting prominent nouns, verbs, adjectives, and adverbs that have educational or lexical value from the source text. Look for ANY core vocabulary words, useful academic collocations, or idiomatic expressions that would be beneficial for a student to study.
 2. MINIMUM YIELD GUARDRAIL: Analyze the provided text packet thoroughly. If the text contains readable English sentences or word lists, you MUST extract at least ${targetMin} useful vocabulary terms from it. Do not return an empty array [] unless the input string is completely devoid of English words.
 3. CRITICAL LINGUISTIC HYGIENE: While we want high selection yield, you are strictly FORBIDDEN from extracting pure machine or layout strings, such as standalone bracket tokens, single-character noise, or raw PDF/programming syntax markers (like "obj", "endobj", "stream", "endstream", "xref", "trailer", "startxref").
 4. STRICT CONTEXTUAL VERIFICATION: Avoid technical parameters, variable namespace tokens, or system property names being used as coding variables in the source text. Focus on genuine words used in human communication.
-
+ 
 Rule Checklist:
 1. Return ONLY a valid minified JSON array [].
 2. No markdown wrapper.
 3. Maintain maximum yield of legitimate advanced and useful vocabularies.
-
+ 
 Original Source Text:
 ${textChunk}`;
 
@@ -344,7 +345,7 @@ ${textChunk}`;
     const { chunkWords } = parsedBody;
     const prompt = `[STRICT DETERMINISTIC MODE] Bạn là một cỗ máy biên dịch dữ liệu (Data Compiler).
 Hãy trích xuất và tối ưu hoá Flashcard từ cụm dữ liệu thô dưới đây. Cụm dữ liệu này có thể chứa từ vựng tiếng Anh, định nghĩa, ví dụ, hoặc một số rác (headers/footers/số trang). Hãy nhặt ra các từ vựng tiếng Anh thực sự và tạo bộ Flashcards. Bỏ qua các rác không phải từ vựng.
-
+ 
 BẮT BUỘC ĐỊNH DẠNG JSON MẢNG TƯƠNG THÍCH HOÀN TOÀN NHƯ SAU:
 [
   {
@@ -356,7 +357,7 @@ BẮT BUỘC ĐỊNH DẠNG JSON MẢNG TƯƠNG THÍCH HOÀN TOÀN NHƯ SAU:
 - Tách riêng Từ loại (Word Form) CHÍNH XÁC.
 - TRẢ VỀ ĐÚNG MỘT MẢNG JSON, KHÔNG CÓ MARKDOWN CODE BLOCK (\`\`\`json). KHÔNG GIẢI THÍCH GÌ THÊM.
 - Trả về CHÍNH XÁC CÁC TỪ VỰNG HOẶC FLASHCARDS CÓ Ý NGHĨA. Nếu không có từ nào hợp lý, trả về mảng rỗng [].
-
+ 
 CỤM DỮ LIỆU THÔ CẦN XỬ LÝ:
 ${(chunkWords || []).join("\n")}`;
     messages = [
@@ -370,13 +371,13 @@ ${(chunkWords || []).join("\n")}`;
 Word: ${front}
 Part of Speech: ${wordForm || "unknown"}
 Meaning: ${back || "unknown"}
-
+ 
 Return ONLY a minified JSON object with these EXACT keys:
 {
   "example": "Illustrative English sentence with its Vietnamese translation in parentheses immediately following.",
   "origin": "An appropriate context snippet matching the word."
 }
-
+ 
 Do not include any markdown wrapper or extra text.`;
     messages = [
       { role: "system", content: "You are an expert lexicographer. Return ONLY a single minified JSON object as specified." },
@@ -386,7 +387,7 @@ Do not include any markdown wrapper or extra text.`;
     const { jsonText } = parsedBody;
     const prompt = `Bạn là một AI chuyên gia kiểm duyệt, làm sạch và sửa lỗi cú pháp dữ liệu cấu trúc (JSON Validator & Repairer).
 Nhiệm vụ của bạn là nhận vào một chuỗi văn bản (gồm JSON chuẩn, hoặc JSON bị thiếu ngoặc, thừa dấu phẩy, bị bọc trong markdown) và sửa lỗi cú pháp, sau đó chuẩn hóa thành một mảng JSON Array chính xác:
-
+ 
 [
   {
     "front": "Từ khóa / thuật ngữ / câu hỏi tiếng Anh",
@@ -396,12 +397,12 @@ Nhiệm vụ của bạn là nhận vào một chuỗi văn bản (gồm JSON ch
     "example": "ví dụ thực tế nếu có"
   }
 ]
-
+ 
 Yêu cầu cực kỳ nghiêm ngặt:
 - Trả về CHỈ mảng JSON Array sạch (bắt đầu bằng [ và kết thúc bằng ]).
 - TUYỆT ĐỐI không bọc trong markdown \`\`\`json ... \`\`\`.
 - KHÔNG có bất kỳ lời giải thích dông dài nào. Nếu không hợp lệ, trả về mảng rỗng [].
-
+ 
 Dữ liệu đầu vào cần sửa lỗi:
 ${jsonText}`;
     messages = [
@@ -611,16 +612,18 @@ async function mapOpenRouterResponse(url: string, content: string): Promise<Resp
 
 // ---- ROUND-ROBIN CROSS-PROVIDER API ROTATION WITH DYNAMIC FILTERING ----
 
-interface ProviderConfig {
+export interface ProviderConfig {
   openRouter: boolean;
   gemini: boolean;
   groq: boolean;
+  deepInfra: boolean;
 }
 
 export let apiProviderConfig: ProviderConfig = {
   openRouter: true,
   gemini: true,
-  groq: true
+  groq: true,
+  deepInfra: true
 };
 
 try {
@@ -660,7 +663,8 @@ if (typeof window !== "undefined") {
   setTimeout(syncProviderToggles, 1000);
 }
 
-function parseKeys(prefixes: string[]): string[] {
+// Utility to parse environment keys, avoiding duplicates
+export function parseKeys(prefixes: string[]): string[] {
   const keys: string[] = [];
   try {
     for (const [envKey, envVal] of Object.entries(import.meta.env)) {
@@ -677,41 +681,48 @@ function parseKeys(prefixes: string[]): string[] {
   return keys;
 }
 
-interface InterleavedKey {
+export interface InterleavedKey {
   key: string;
-  provider: "openRouter" | "gemini" | "groq";
+  provider: "openRouter" | "gemini" | "groq" | "deepInfra";
 }
 
 let globalPoolIndex = 0;
 
 // ---- ADVANCED KEY COOLDOWN MANAGER ----
-interface KeyState {
+export interface KeyState {
   key: string;
-  provider: "openRouter" | "gemini" | "groq";
+  provider: "openRouter" | "gemini" | "groq" | "deepInfra";
   status: "ACTIVE" | "COOLING" | "DEPLETED";
   cooldownUntil: number;
 }
 
 export const keyRegistry = new Map<string, KeyState>();
 
-export function handleKeyError(key: string, provider: "openRouter" | "gemini" | "groq", status: number, bodyText: string) {
+export function handleKeyError(key: string, provider: "openRouter" | "gemini" | "groq" | "deepInfra", status: number, bodyText: string) {
   let state = keyRegistry.get(key);
   if (!state) {
     state = { key, provider, status: "ACTIVE", cooldownUntil: 0 };
     keyRegistry.set(key, state);
   }
 
+  // Pipe raw error to debugger console
+  console.error(`[DEBUGGER] Key failure detected on provider ${provider}. Status code: ${status}. Error body:`, bodyText);
+
   const normalizedText = bodyText.toLowerCase();
   
   // Model Not Found (404), Quota/Billing exceeded strings
-  const isDepleted = status === 404 || 
+  const isDepleted = status === 404 || status === 401 || status === 403 ||
                      normalizedText.includes("quota, please check your plan") || 
-                     normalizedText.includes("quota") || 
+                     normalizedText.includes("exceeded your current quota") ||
+                     normalizedText.includes("hard quota") ||
                      normalizedText.includes("billing") ||
                      normalizedText.includes("credit") ||
                      normalizedText.includes("limit_exceeded") ||
                      normalizedText.includes("model not found") ||
-                     normalizedText.includes("not_found");
+                     normalizedText.includes("not_found") ||
+                     normalizedText.includes("unauthorized") ||
+                     normalizedText.includes("forbidden") ||
+                     normalizedText.includes("invalid api key");
 
   // Rate Limiting (429)
   const isCooling = status === 429 || 
@@ -724,7 +735,7 @@ export function handleKeyError(key: string, provider: "openRouter" | "gemini" | 
   if (isDepleted) {
     state.status = "DEPLETED";
     state.cooldownUntil = Date.now() + 12 * 60 * 60 * 1000; // 12 hours
-    console.warn(`[Key Cooldown Manager] Key (${provider}) marked DEPLETED for 12h due to status ${status} / quota / model issues.`, key.substring(0, 10) + "...");
+    console.warn(`[Key Cooldown Manager] Key (${provider}) marked DEPLETED for 12h due to status ${status} / quota / auth / model issues.`, key.substring(0, 10) + "...");
   } else if (isCooling) {
     state.status = "COOLING";
     state.cooldownUntil = Date.now() + 60 * 1000; // 60 seconds
@@ -733,31 +744,189 @@ export function handleKeyError(key: string, provider: "openRouter" | "gemini" | 
 }
 
 export function getInterleavedPool(): InterleavedKey[] {
-  const openRouterKeysRaw = parseKeys(["VITE_OPENROUTER_KEY"]);
-  const geminiKeysRaw = parseKeys(["VITE_GEMINI_API_KEY"]);
-  const groqKeysRaw = parseKeys(["VITE_GROQ_API_KEY", "VITE_GROQ_KEY"]);
+  const geminiKeysRaw: string[] = [];
+  const openRouterKeys: string[] = [];
+  const deepInfraKeys: string[] = [];
+  const groqKeysRaw: string[] = [];
 
-  if (openRouterKeysRaw.length === 0 && import.meta.env.VITE_OPENROUTER_KEY) {
-    openRouterKeysRaw.push(import.meta.env.VITE_OPENROUTER_KEY);
-  }
-  if (geminiKeysRaw.length === 0 && import.meta.env.VITE_GEMINI_API_KEY) {
-    geminiKeysRaw.push(import.meta.env.VITE_GEMINI_API_KEY);
-  }
-  if (groqKeysRaw.length === 0 && import.meta.env.VITE_GROQ_API_KEY) {
-    groqKeysRaw.push(import.meta.env.VITE_GROQ_API_KEY);
+  // Safe process.env accessor to avoid ReferenceError on client environment
+  const safeProcessEnv = (typeof process !== "undefined" && process?.env) ? process.env : {};
+
+  // 1. Parse Gemini Keys: process.env.GEMINI_API_KEY_1 to process.env.GEMINI_API_KEY_11
+  for (let i = 1; i <= 11; i++) {
+    const k1 = safeProcessEnv[`GEMINI_API_KEY_${i}`];
+    if (k1 && typeof k1 === 'string' && k1.trim()) geminiKeysRaw.push(k1.trim());
+
+    const k2 = safeProcessEnv[`VITE_GEMINI_API_KEY_${i}`];
+    if (k2 && typeof k2 === 'string' && k2.trim()) geminiKeysRaw.push(k2.trim());
+
+    try {
+      const k3 = import.meta.env[`VITE_GEMINI_API_KEY_${i}`];
+      if (k3 && typeof k3 === 'string' && k3.trim()) geminiKeysRaw.push(k3.trim());
+    } catch (e) {}
   }
 
-  const validOpenRouter = openRouterKeysRaw.filter(k => k && typeof k === "string" && k.startsWith("sk-or-") && k.trim() !== "" && k !== "undefined" && k !== "null");
-  const validGemini = geminiKeysRaw.filter(k => k && typeof k === "string" && k.trim() !== "" && k !== "undefined" && k !== "null");
-  const validGroq = groqKeysRaw.filter(k => k && typeof k === "string" && k.trim() !== "" && k !== "undefined" && k !== "null");
+  // Single default fallback Gemini keys
+  if (safeProcessEnv.GEMINI_API_KEY && typeof safeProcessEnv.GEMINI_API_KEY === 'string' && safeProcessEnv.GEMINI_API_KEY.trim()) {
+    geminiKeysRaw.push(safeProcessEnv.GEMINI_API_KEY.trim());
+  }
+  if (safeProcessEnv.VITE_GEMINI_API_KEY && typeof safeProcessEnv.VITE_GEMINI_API_KEY === 'string' && safeProcessEnv.VITE_GEMINI_API_KEY.trim()) {
+    geminiKeysRaw.push(safeProcessEnv.VITE_GEMINI_API_KEY.trim());
+  }
+  try {
+    if (import.meta.env.VITE_GEMINI_API_KEY && typeof import.meta.env.VITE_GEMINI_API_KEY === 'string' && import.meta.env.VITE_GEMINI_API_KEY.trim()) {
+      geminiKeysRaw.push(import.meta.env.VITE_GEMINI_API_KEY.trim());
+    }
+  } catch (e) {}
 
-  const lists: { provider: "openRouter" | "gemini" | "groq"; keys: string[] }[] = [];
+  // 2. Parse OpenRouter Keys: import.meta.env.VITE_OPENROUTER_API_KEY_1 to import.meta.env.VITE_OPENROUTER_API_KEY_8
+  for (let i = 1; i <= 8; i++) {
+    try {
+      const k1 = import.meta.env[`VITE_OPENROUTER_API_KEY_${i}`];
+      if (k1 && typeof k1 === 'string' && k1.trim()) openRouterKeys.push(k1.trim());
+    } catch (e) {}
+    try {
+      const k2 = import.meta.env[`VITE_OPENROUTER_KEY_${i}`];
+      if (k2 && typeof k2 === 'string' && k2.trim()) openRouterKeys.push(k2.trim());
+    } catch (e) {}
+
+    const kp1 = safeProcessEnv[`VITE_OPENROUTER_API_KEY_${i}`];
+    if (kp1 && typeof kp1 === 'string' && kp1.trim()) openRouterKeys.push(kp1.trim());
+
+    const kp2 = safeProcessEnv[`VITE_OPENROUTER_KEY_${i}`];
+    if (kp2 && typeof kp2 === 'string' && kp2.trim()) openRouterKeys.push(kp2.trim());
+
+    const kp3 = safeProcessEnv[`OPENROUTER_API_KEY_${i}`];
+    if (kp3 && typeof kp3 === 'string' && kp3.trim()) openRouterKeys.push(kp3.trim());
+  }
+
+  // Single default fallback OR keys
+  try {
+    if (import.meta.env.VITE_OPENROUTER_API_KEY && typeof import.meta.env.VITE_OPENROUTER_API_KEY === 'string' && import.meta.env.VITE_OPENROUTER_API_KEY.trim()) {
+      openRouterKeys.push(import.meta.env.VITE_OPENROUTER_API_KEY.trim());
+    }
+    if (import.meta.env.VITE_OPENROUTER_KEY && typeof import.meta.env.VITE_OPENROUTER_KEY === 'string' && import.meta.env.VITE_OPENROUTER_KEY.trim()) {
+      openRouterKeys.push(import.meta.env.VITE_OPENROUTER_KEY.trim());
+    }
+  } catch (e) {}
+
+  if (safeProcessEnv.VITE_OPENROUTER_API_KEY && typeof safeProcessEnv.VITE_OPENROUTER_API_KEY === 'string' && safeProcessEnv.VITE_OPENROUTER_API_KEY.trim()) {
+    openRouterKeys.push(safeProcessEnv.VITE_OPENROUTER_API_KEY.trim());
+  }
+  if (safeProcessEnv.VITE_OPENROUTER_KEY && typeof safeProcessEnv.VITE_OPENROUTER_KEY === 'string' && safeProcessEnv.VITE_OPENROUTER_KEY.trim()) {
+    openRouterKeys.push(safeProcessEnv.VITE_OPENROUTER_KEY.trim());
+  }
+  if (safeProcessEnv.OPENROUTER_API_KEY && typeof safeProcessEnv.OPENROUTER_API_KEY === 'string' && safeProcessEnv.OPENROUTER_API_KEY.trim()) {
+    openRouterKeys.push(safeProcessEnv.OPENROUTER_API_KEY.trim());
+  }
+
+  // 3. Parse DeepInfra Keys: import.meta.env.VITE_DEEPINFRA_API_KEY_1 to import.meta.env.VITE_DEEPINFRA_API_KEY_8
+  for (let i = 1; i <= 8; i++) {
+    try {
+      const k1 = import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`];
+      if (k1 && typeof k1 === 'string' && k1.trim()) deepInfraKeys.push(k1.trim());
+    } catch (e) {}
+    try {
+      const k2 = import.meta.env[`VITE_DEEPINFRA_KEY_${i}`];
+      if (k2 && typeof k2 === 'string' && k2.trim()) deepInfraKeys.push(k2.trim());
+    } catch (e) {}
+
+    const kp1 = safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`];
+    if (kp1 && typeof kp1 === 'string' && kp1.trim()) deepInfraKeys.push(kp1.trim());
+
+    const kp2 = safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`];
+    if (kp2 && typeof kp2 === 'string' && kp2.trim()) deepInfraKeys.push(kp2.trim());
+
+    const kp3 = safeProcessEnv[`DEEPINFRA_API_KEY_${i}`];
+    if (kp3 && typeof kp3 === 'string' && kp3.trim()) deepInfraKeys.push(kp3.trim());
+  }
+
+  // Single default fallback DeepInfra keys
+  try {
+    if (import.meta.env.VITE_DEEPINFRA_API_KEY && typeof import.meta.env.VITE_DEEPINFRA_API_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_API_KEY.trim()) {
+      deepInfraKeys.push(import.meta.env.VITE_DEEPINFRA_API_KEY.trim());
+    }
+    if (import.meta.env.VITE_DEEPINFRA_KEY && typeof import.meta.env.VITE_DEEPINFRA_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_KEY.trim()) {
+      deepInfraKeys.push(import.meta.env.VITE_DEEPINFRA_KEY.trim());
+    }
+  } catch (e) {}
+
+  if (safeProcessEnv.VITE_DEEPINFRA_API_KEY && typeof safeProcessEnv.VITE_DEEPINFRA_API_KEY === 'string' && safeProcessEnv.VITE_DEEPINFRA_API_KEY.trim()) {
+    deepInfraKeys.push(safeProcessEnv.VITE_DEEPINFRA_API_KEY.trim());
+  }
+  if (safeProcessEnv.VITE_DEEPINFRA_KEY && typeof safeProcessEnv.VITE_DEEPINFRA_KEY === 'string' && safeProcessEnv.VITE_DEEPINFRA_KEY.trim()) {
+    deepInfraKeys.push(safeProcessEnv.VITE_DEEPINFRA_KEY.trim());
+  }
+  if (safeProcessEnv.DEEPINFRA_API_KEY && typeof safeProcessEnv.DEEPINFRA_API_KEY === 'string' && safeProcessEnv.DEEPINFRA_API_KEY.trim()) {
+    deepInfraKeys.push(safeProcessEnv.DEEPINFRA_API_KEY.trim());
+  }
+
+  // 4. Parse Groq Keys: Keep original mappings for UI placeholders but exclude them from active interleaved picker if depleted
+  for (let i = 1; i <= 10; i++) {
+    try {
+      const k1 = import.meta.env[`VITE_GROQ_API_KEY_${i}`];
+      if (k1 && typeof k1 === 'string' && k1.trim()) groqKeysRaw.push(k1.trim());
+    } catch (e) {}
+    try {
+      const k2 = import.meta.env[`VITE_GROQ_KEY_${i}`];
+      if (k2 && typeof k2 === 'string' && k2.trim()) groqKeysRaw.push(k2.trim());
+    } catch (e) {}
+
+    const kp1 = safeProcessEnv[`VITE_GROQ_API_KEY_${i}`];
+    if (kp1 && typeof kp1 === 'string' && kp1.trim()) groqKeysRaw.push(kp1.trim());
+
+    const kp2 = safeProcessEnv[`VITE_GROQ_KEY_${i}`];
+    if (kp2 && typeof kp2 === 'string' && kp2.trim()) groqKeysRaw.push(kp2.trim());
+
+    const kp3 = safeProcessEnv[`GROQ_API_KEY_${i}`];
+    if (kp3 && typeof kp3 === 'string' && kp3.trim()) groqKeysRaw.push(kp3.trim());
+  }
+
+  try {
+    if (import.meta.env.VITE_GROQ_API_KEY && typeof import.meta.env.VITE_GROQ_API_KEY === 'string' && import.meta.env.VITE_GROQ_API_KEY.trim()) {
+      groqKeysRaw.push(import.meta.env.VITE_GROQ_API_KEY.trim());
+    }
+    if (import.meta.env.VITE_GROQ_KEY && typeof import.meta.env.VITE_GROQ_KEY === 'string' && import.meta.env.VITE_GROQ_KEY.trim()) {
+      groqKeysRaw.push(import.meta.env.VITE_GROQ_KEY.trim());
+    }
+  } catch (e) {}
+  if (safeProcessEnv.VITE_GROQ_API_KEY && typeof safeProcessEnv.VITE_GROQ_API_KEY === 'string' && safeProcessEnv.VITE_GROQ_API_KEY.trim()) {
+    groqKeysRaw.push(safeProcessEnv.VITE_GROQ_API_KEY.trim());
+  }
+  if (safeProcessEnv.VITE_GROQ_KEY && typeof safeProcessEnv.VITE_GROQ_KEY === 'string' && safeProcessEnv.VITE_GROQ_KEY.trim()) {
+    groqKeysRaw.push(safeProcessEnv.VITE_GROQ_KEY.trim());
+  }
+  if (safeProcessEnv.GROQ_API_KEY && typeof safeProcessEnv.GROQ_API_KEY === 'string' && safeProcessEnv.GROQ_API_KEY.trim()) {
+    groqKeysRaw.push(safeProcessEnv.GROQ_API_KEY.trim());
+  }
+
+  // Ultra-Strict Cleansing (Anti-Undefined Guard)
+  const validOpenRouter = Array.from(new Set(openRouterKeys))
+    .map(k => k.trim())
+    .filter(k => k && k.startsWith("sk-or-") && k !== "undefined" && k !== "null");
+
+  const validGemini = Array.from(new Set(geminiKeysRaw))
+    .map(k => k.trim())
+    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+
+  const validDeepInfra = Array.from(new Set(deepInfraKeys))
+    .map(k => k.trim())
+    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+
+  const validGroq = Array.from(new Set(groqKeysRaw))
+    .map(k => k.trim())
+    .filter(k => k && k !== "" && k !== "undefined" && k !== "null");
+
+  const lists: { provider: "openRouter" | "gemini" | "groq" | "deepInfra"; keys: string[] }[] = [];
 
   if (apiProviderConfig.openRouter && validOpenRouter.length > 0) {
     lists.push({ provider: "openRouter", keys: validOpenRouter });
   }
   if (apiProviderConfig.gemini && validGemini.length > 0) {
     lists.push({ provider: "gemini", keys: validGemini });
+  }
+  if (apiProviderConfig.deepInfra && validDeepInfra.length > 0) {
+    lists.push({ provider: "deepInfra", keys: validDeepInfra });
   }
   if (apiProviderConfig.groq && validGroq.length > 0) {
     lists.push({ provider: "groq", keys: validGroq });
@@ -779,10 +948,20 @@ export function getInterleavedPool(): InterleavedKey[] {
     }
   }
 
-  // KEY FILTERING MANDATE: picker MUST only yield keys where Date.now() > cooldownUntil
-  return interleavedPool.filter(item => {
+  // Final validation pass
+  const cleanInterleavedPool = interleavedPool.filter(item => {
+    if (!item || !item.key || typeof item.key !== 'string') return false;
+    const trimKey = item.key.trim();
+    if (trimKey === "" || trimKey === "undefined" || trimKey === "null") return false;
+    if (item.provider === "openRouter" && !trimKey.startsWith("sk-or-")) return false;
+    return true;
+  });
+
+  // KEY FILTERING MANDATE: picker MUST only yield active keys where Date.now() > cooldownUntil and status is not DEPLETED
+  return cleanInterleavedPool.filter(item => {
     const state = keyRegistry.get(item.key);
     if (!state) return true;
+    if (state.status === "DEPLETED") return false;
     return Date.now() > state.cooldownUntil;
   });
 }
@@ -933,6 +1112,46 @@ async function fetchGroqDirect(apiKey: string, messages: any[], isJsonExpected: 
   }
 }
 
+async function fetchDeepInfraDirect(apiKey: string, messages: any[], isJsonExpected: boolean): Promise<string> {
+  const bodyObj: any = {
+    model: "meta-llama/Meta-Llama-3-8B-Instruct",
+    messages,
+    temperature: 0.1,
+    max_tokens: 4096
+  };
+  
+  if (isJsonExpected) {
+    bodyObj.response_format = { type: "json_object" };
+  }
+
+  try {
+    const response = await fetch("https://api.deepinfra.com/v1/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(bodyObj)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      handleKeyError(apiKey, "deepInfra", response.status, errText);
+      throw new Error(`DeepInfra Direct failure: ${response.status} - ${errText}`);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Empty content returned from DeepInfra direct endpoint.");
+    return content;
+  } catch (err: any) {
+    if (err.message && !err.message.includes("DeepInfra Direct failure")) {
+      handleKeyError(apiKey, "deepInfra", 0, err.message || "");
+    }
+    throw err;
+  }
+}
+
 async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestInit): Promise<Response> {
   let currentOptions = options ? { ...options } : {};
   let providerType: "primary" | "backup" = "primary";
@@ -969,13 +1188,24 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
         break;
       }
 
-      const item = pool[globalPoolIndex % pool.length];
+      let currIndex = globalPoolIndex;
+      let item = pool[currIndex % pool.length];
+      let skipCount = 0;
+
+      // Safe Pointer Advancement: Skip invalid or empty slots immediately without triggering an API call
+      while ((!item || !item.key || typeof item.key !== "string" || item.key.trim() === "" || item.key === "undefined" || item.key === "null" ||
+             (item.provider === "openRouter" && !item.key.trim().startsWith("sk-or-"))) && skipCount < pool.length) {
+        console.warn("Skipping invalid key slot");
+        currIndex++;
+        globalPoolIndex = currIndex;
+        item = pool[currIndex % pool.length];
+        skipCount++;
+      }
 
       if (!item || !item.key || typeof item.key !== "string" || item.key.trim() === "" || item.key === "undefined" || item.key === "null" ||
-          (item.provider === "openRouter" && !item.key.startsWith("sk-or-"))) {
-        console.warn("Skipping invalid key slot");
-        globalPoolIndex++;
-        continue;
+          (item.provider === "openRouter" && !item.key.trim().startsWith("sk-or-"))) {
+        console.warn("[apiClient Rotation] Scanned entire pool, no valid keys remaining.");
+        break;
       }
 
       attempts++;
@@ -989,11 +1219,14 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
           content = await fetchGeminiDirect(item.key, messages, isJsonExpected);
         } else if (item.provider === "groq") {
           content = await fetchGroqDirect(item.key, messages, isJsonExpected);
+        } else if (item.provider === "deepInfra") {
+          content = await fetchDeepInfraDirect(item.key, messages, isJsonExpected);
         }
 
         if (content) {
           console.log(`[apiClient Rotation] Successfully completed request via rotated ${item.provider} on attempt ${attempts}!`);
           const mappedRes = await mapOpenRouterResponse(url, content);
+          globalPoolIndex++; // safe advancement after success
           return mappedRes;
         }
       } catch (err: any) {
@@ -1014,7 +1247,7 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
 
         // Exponential backoff with jitter delay
         if (attempts < maxAttempts) {
-          const delay = Math.min(10000, Math.pow(2, attempts) * 1000) + Math.random() * 1000;
+          const delay = Math.min(10000, Math.pow(2, attempts) * 1000) + (Math.random() * 1000);
           console.log(`[apiClient Rotation] [Jitter Backoff] Waiting ${delay.toFixed(0)}ms before next rotation attempt...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -1051,12 +1284,8 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
     const controller = new AbortController();
     
     // Set response deadline with a generous timeout to allow large text/doc completions
-    const isHeavyService = url.includes("/api/automation/process-chunk") || 
-                           url.includes("/api/extract-text") || 
-                           url.includes("/api/convert-document-chunk") ||
-                           url.includes("/api/exam/generate") ||
-                           url.includes("/api/agent/lesson-plan");
-    const timeoutDuration = isHeavyService ? 300000 : 35000;
+    // Force set Timeout duration to 45000ms (45 seconds) as requested to cycle unresponsive keys early
+    const timeoutDuration = 45000;
     const timeoutId = setTimeout(() => {
       console.warn(`[apiClient Log] Yêu cầu tới ${url} bị quá thời gian phản hồi (timeout ${timeoutDuration / 1000}s). Đang tự động huỷ bỏ và phát tín hiệu thử lại.`);
       controller.abort();

@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 import { store } from "../lib/store";
 import { apiManager } from "../lib/ApiQueueManager";
 import { NetworkHealthMonitor, NetworkHealthLog } from "../lib/NetworkHealthMonitor";
+import { apiProviderConfig, updateApiProviderConfig, keyRegistry } from "../utils/apiClient";
 
 class MonitorErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
   constructor(props: any) { super(props); this.state = { hasError: false }; }
@@ -96,7 +97,9 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
   const [openRouterEnabled, setOpenRouterEnabled] = useState(true);
   const [groqEnabled, setGroqEnabled] = useState(true);
   const [geminiEnabled, setGeminiEnabled] = useState(true);
+  const [deepInfraEnabled, setDeepInfraEnabled] = useState(apiProviderConfig.deepInfra);
   const [isUpdatingToggles, setIsUpdatingToggles] = useState(false);
+  const [deepInfraKeys, setDeepInfraKeys] = useState<KeyState[]>([]);
   
   // Dynamic Groq keys and logs (real-time loaded from the server)
   const [groqKeys, setGroqKeys] = useState<KeyState[]>([]);
@@ -131,6 +134,66 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
     }
   };
 
+  const loadDeepInfraKeys = () => {
+    const keysRaw: string[] = [];
+    const safeProcessEnv = (typeof process !== "undefined" && process?.env) ? process.env : {};
+    
+    for (let i = 1; i <= 8; i++) {
+      try {
+        const k1 = import.meta.env[`VITE_DEEPINFRA_API_KEY_${i}`];
+        if (k1 && typeof k1 === 'string' && k1.trim()) keysRaw.push(k1.trim());
+      } catch (e) {}
+      try {
+        const k2 = import.meta.env[`VITE_DEEPINFRA_KEY_${i}`];
+        if (k2 && typeof k2 === 'string' && k2.trim()) keysRaw.push(k2.trim());
+      } catch (e) {}
+
+      const kp1 = safeProcessEnv[`VITE_DEEPINFRA_API_KEY_${i}`];
+      if (kp1 && typeof kp1 === 'string' && kp1.trim()) keysRaw.push(kp1.trim());
+
+      const kp2 = safeProcessEnv[`VITE_DEEPINFRA_KEY_${i}`];
+      if (kp2 && typeof kp2 === 'string' && kp2.trim()) keysRaw.push(kp2.trim());
+
+      const kp3 = safeProcessEnv[`DEEPINFRA_API_KEY_${i}`];
+      if (kp3 && typeof kp3 === 'string' && kp3.trim()) keysRaw.push(kp3.trim());
+    }
+
+    try {
+      if (import.meta.env.VITE_DEEPINFRA_API_KEY && typeof import.meta.env.VITE_DEEPINFRA_API_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_API_KEY.trim()) {
+        keysRaw.push(import.meta.env.VITE_DEEPINFRA_API_KEY.trim());
+      }
+      if (import.meta.env.VITE_DEEPINFRA_KEY && typeof import.meta.env.VITE_DEEPINFRA_KEY === 'string' && import.meta.env.VITE_DEEPINFRA_KEY.trim()) {
+        keysRaw.push(import.meta.env.VITE_DEEPINFRA_KEY.trim());
+      }
+    } catch (e) {}
+
+    const uniqueKeys = Array.from(new Set(keysRaw)).map(k => k.trim()).filter(k => k && k !== "undefined" && k !== "null");
+    
+    const mapped = uniqueKeys.map((key, idx) => {
+      const state = keyRegistry.get(key);
+      let status: "active" | "rate_limited" | "exhausted" | "failed" = "active";
+      if (state) {
+        if (state.status === "DEPLETED") status = "exhausted";
+        else if (state.status === "COOLING") status = "rate_limited";
+      }
+
+      const masked = key.length > 15 
+        ? `${key.substring(0, 8)}...${key.substring(key.length - 6)}` 
+        : "Secret Value";
+
+      return {
+        index: idx + 1,
+        maskedKey: masked,
+        status,
+        usageCount: 0,
+        errorCount: 0,
+        lastUsed: null
+      } as KeyState;
+    });
+
+    setDeepInfraKeys(mapped);
+  };
+
   const fetchToggles = async () => {
     try {
       const res = await fetch("/api/admin/api-toggles", {
@@ -141,17 +204,31 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
         setOpenRouterEnabled(data.openRouterEnabled !== false);
         setGroqEnabled(data.groqEnabled !== false);
         setGeminiEnabled(data.geminiEnabled !== false);
+        
+        updateApiProviderConfig({
+          openRouter: data.openRouterEnabled !== false,
+          gemini: data.geminiEnabled !== false,
+          groq: data.groqEnabled !== false
+        });
       }
+      setDeepInfraEnabled(apiProviderConfig.deepInfra);
+      loadDeepInfraKeys();
     } catch (err) {
       console.error("Lỗi khi tải trạng thái API toggles:", err);
     }
   };
 
-  const handleToggleChange = async (type: "openrouter" | "gemini" | "groq", newValue: boolean) => {
+  const handleToggleChange = async (type: "openrouter" | "gemini" | "groq" | "deepinfra", newValue: boolean) => {
     setIsUpdatingToggles(true);
     if (type === "openrouter") setOpenRouterEnabled(newValue);
     if (type === "gemini") setGeminiEnabled(newValue);
     if (type === "groq") setGroqEnabled(newValue);
+    if (type === "deepinfra") {
+      setDeepInfraEnabled(newValue);
+      updateApiProviderConfig({ deepInfra: newValue });
+      setIsUpdatingToggles(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/admin/api-toggles", {
@@ -173,6 +250,12 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
       setOpenRouterEnabled(data.openRouterEnabled !== false);
       setGroqEnabled(data.groqEnabled !== false);
       setGeminiEnabled(data.geminiEnabled !== false);
+      
+      updateApiProviderConfig({
+        openRouter: data.openRouterEnabled !== false,
+        gemini: data.geminiEnabled !== false,
+        groq: data.groqEnabled !== false
+      });
     } catch (err: any) {
       alert("Lỗi cập nhật Switch: " + err.message);
       if (type === "openrouter") setOpenRouterEnabled(!newValue);
@@ -347,6 +430,7 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
         setGroqLogs(data.groq.logs || []);
       }
       
+      loadDeepInfraKeys();
       setError("");
       await fetchToggles();
     } catch (err: any) {
@@ -555,7 +639,7 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
               {/* Google Gemini API Switch */}
               <div 
                 className={`p-4 rounded-lg flex items-center justify-between border transition-all duration-300 ${
@@ -662,6 +746,43 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
                     aria-hidden="true"
                     className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                       openRouterEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* DeepInfra API Switch */}
+              <div 
+                className={`p-4 rounded-lg flex items-center justify-between border transition-all duration-300 ${
+                  deepInfraEnabled 
+                    ? "bg-indigo-50/45 dark:bg-indigo-950/15 border-indigo-200/50 dark:border-indigo-800/20" 
+                    : "bg-stone-100/70 dark:bg-zinc-950/20 border-stone-200 dark:border-zinc-800 grayscale"
+                }`}
+              >
+                <div className="space-y-1 pr-4">
+                  <div className="font-bold text-sm text-stone-800 dark:text-stone-100 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-indigo-500" /> DeepInfra Pool
+                  </div>
+                  <div className="text-[11px] text-stone-500">
+                    {deepInfraEnabled 
+                      ? "🟢 Đang hoạt động (Xoay vòng siêu tải, Llama Chuyên sâu)" 
+                      : "🔴 Đã ngắt mạch (Chặn tránh dính spam vòng ngoài)"}
+                  </div>
+                </div>
+
+                {/* Styled Toggle Switch */}
+                <button
+                  type="button"
+                  disabled={isUpdatingToggles}
+                  onClick={() => handleToggleChange("deepinfra", !deepInfraEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    deepInfraEnabled ? "bg-indigo-500" : "bg-stone-300 dark:bg-zinc-700"
+                  } ${isUpdatingToggles ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      deepInfraEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
@@ -921,6 +1042,84 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
 
                     <div className="text-xs text-stone-400 dark:text-stone-505 mt-1">
                       Last Used: {k.lastUsed ? new Date(k.lastUsed).toLocaleTimeString() : 'Never'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* DeepInfra API Keys Section */}
+          <div className="space-y-4 pt-10 border-t border-stone-200 dark:border-zinc-800">
+            <div className="border-b border-stone-200 dark:border-zinc-800 pb-2">
+              <h3 className="text-xl font-bold font-display text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                <Globe className="w-5 h-5 text-indigo-500" />
+                DeepInfra Multi-Key Rotation Pool
+                <span className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                  {deepInfraKeys.length} keys · Active: {deepInfraEnabled ? "ON" : "OFF"}
+                </span>
+              </h3>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Hạ tầng truy vấn siêu tốc kết hợp xoay vòng thông minh nhiều API keys từ DeepInfra Llama-3-8B làm nguồn sơ cấp, tự động nhảy vòng lặp khi lỗi 429/Too Many Requests.</p>
+            </div>
+            
+            {deepInfraKeys.length === 0 ? (
+              <div className="p-8 text-center text-stone-500 bg-stone-100 dark:bg-zinc-900/40 rounded-xl">
+                Không tìm thấy DeepInfra API Keys nào được cấu hình. Vui lòng cấu hình VITE_DEEPINFRA_API_KEY_1...8.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {deepInfraKeys.map((k) => (
+                  <div 
+                    key={k.index} 
+                    className="card-3d p-5 rounded-xl border flex flex-col gap-4 border-stone-200 dark:border-zinc-800"
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className="text-sm font-bold bg-stone-200 dark:bg-zinc-800 px-2.5 py-1 rounded-md">
+                        DeepInfra Key #{k.index}
+                      </span>
+                      <div className="flex items-center gap-3">
+                         <D3Sparkline 
+                            data={Array(20).fill(0)} 
+                            color={k.status === 'rate_limited' ? '#f59e0b' : k.status === 'failed' ? '#ef4444' : k.status === 'exhausted' ? '#71717a' : '#6366f1'} 
+                         />
+                         {k.status === "active" && <span className="flex items-center gap-1 text-xs font-bold text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-1 rounded-full"><CheckCircle className="w-3.5 h-3.5" /> ACTIVE</span>}
+                         {k.status === "rate_limited" && <span className="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full"><Clock className="w-3.5 h-3.5" /> COOLDOWN</span>}
+                         {k.status === "exhausted" && <span className="flex items-center gap-1 text-xs font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-900/30 px-2 py-1 rounded-full"><AlertCircle className="w-3.5 h-3.5" /> EXHAUSTED</span>}
+                         {k.status === "failed" && <span className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-full"><AlertCircle className="w-3.5 h-3.5" /> FAILED</span>}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-xs text-stone-500 dark:text-stone-400 mb-1 uppercase tracking-wider">Masked Key</div>
+                      <div className="font-mono text-sm">{k.maskedKey}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm mt-auto border-t border-stone-200 dark:border-zinc-800 pt-3">
+                      <div>
+                        <div className="text-stone-500 text-xs">Usage Count</div>
+                        <div className="font-medium text-lg">{k.usageCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-stone-500 text-xs">Error Count</div>
+                        <div className="font-medium text-red-500 text-lg">{k.errorCount}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-1">
+                       <div className="flex justify-between text-xs mb-1.5">
+                         <span className="text-stone-500 dark:text-stone-400">Est. Daily Quota</span>
+                         <span className="font-medium">0%</span>
+                       </div>
+                       <div className="w-full bg-stone-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                         <div 
+                           className="h-full rounded-full transition-all duration-500 bg-indigo-600 dark:bg-indigo-500"
+                           style={{ width: "0%" }}
+                         ></div>
+                       </div>
+                    </div>
+
+                    <div className="text-xs text-stone-400 dark:text-stone-505 mt-1">
+                      Last Used: Never
                     </div>
                   </div>
                 ))}

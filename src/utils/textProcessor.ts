@@ -19,7 +19,7 @@ export interface ChunkResult {
 
 export function splitIntoChunks(text: string, options: ChunkingOptions = {}): ChunkResult[] {
   const maxWords = options.maxWords ?? 150;
-  const maxChars = options.maxChars ?? 1500;
+  const maxChars = options.maxChars ?? 2500;
   let overlapWords = options.overlapWords ?? Math.round(maxWords * 0.15); // 15% overlap by default
 
   if (!text || !text.trim()) {

@@ -253,6 +253,34 @@ export default function DocumentConverter() {
   const [sanitizeDuplicates, setSanitizeDuplicates] = useState(true);
   const [isSplitDeckEnabled, setIsSplitDeckEnabled] = useState(false);
   const [splitDeckSize, setSplitDeckSize] = useState<number>(40);
+
+  // Synchronous Refs to eliminate stale React closures of settings
+  const isSplitDeckEnabledRef = useRef(isSplitDeckEnabled);
+  const splitDeckSizeRef = useRef(splitDeckSize);
+  const isAddToExistingRef = useRef(isAddToExisting);
+  const deckTitleRef = useRef(deckTitle);
+  const deckSubjectRef = useRef(deckSubject);
+
+  useEffect(() => {
+    isSplitDeckEnabledRef.current = isSplitDeckEnabled;
+  }, [isSplitDeckEnabled]);
+
+  useEffect(() => {
+    splitDeckSizeRef.current = splitDeckSize;
+  }, [splitDeckSize]);
+
+  useEffect(() => {
+    isAddToExistingRef.current = isAddToExisting;
+  }, [isAddToExisting]);
+
+  useEffect(() => {
+    deckTitleRef.current = deckTitle;
+  }, [deckTitle]);
+
+  useEffect(() => {
+    deckSubjectRef.current = deckSubject;
+  }, [deckSubject]);
+
   const [chunkMaxWords, setChunkMaxWords] = useState<number>(150); // Mặc định 150 từ
   const [chunkMaxChars, setChunkMaxChars] = useState<number>(2500); // Mặc định 2500 kí tự
   const [chunkOverlapWords, setChunkOverlapWords] = useState<number>(10);
@@ -1299,10 +1327,17 @@ export default function DocumentConverter() {
       const { v4: uuidv4 } = await import("uuid");
       const deckId = `deck_${uuidv4()}`;
       
-      const titleToUse = deckTitle.trim() || uploadedFileName || `Chuyển đổi AI ${todayStr}`;
-      const subjectToUse = deckSubject.trim() || "Tự chọn";
+      // Luôn trích xuất trực tiếp từ Refs đồng bộ để bẻ gãy triệt để mọi closure trì hoãn hay delay state của React
+      const currentIsSplitEnabled = isSplitDeckEnabledRef.current;
+      const currentSplitSizeVal = splitDeckSizeRef.current;
+      const currentIsAddToExisting = isAddToExistingRef.current;
+      const currentDeckTitle = deckTitleRef.current;
+      const currentDeckSubject = deckSubjectRef.current;
 
-      const targetDeck = isAddToExisting && selectedExistingDeckId ? store.getDeck(selectedExistingDeckId) : null;
+      const titleToUse = currentDeckTitle.trim() || uploadedFileName || `Chuyển đổi AI ${todayStr}`;
+      const subjectToUse = currentDeckSubject.trim() || "Tự chọn";
+
+      const targetDeck = currentIsAddToExisting && selectedExistingDeckId ? store.getDeck(selectedExistingDeckId) : null;
       const finalDeckId = targetDeck ? targetDeck.id : deckId;
       const finalSubject = targetDeck ? (targetDeck.subject || "Tự chọn") : subjectToUse;
 
@@ -1311,13 +1346,13 @@ export default function DocumentConverter() {
       const currentUser = auth.currentUser;
 
       // Ép kiểu cực kỳ nghiêm ngặt để triệt tiêu mọi rủi ro dính NaN, undefined hoặc chuỗi rỗng
-      const parsedSplitSize = Math.max(5, Number(splitDeckSize) || 40);
-      const isSplitActive = (isSplitDeckEnabled === true || String(isSplitDeckEnabled) === "true") && !isAddToExisting;
+      const parsedSplitSize = Math.max(5, Number(currentSplitSizeVal) || 40);
+      const isSplitActive = (currentIsSplitEnabled === true || String(currentIsSplitEnabled) === "true") && !currentIsAddToExisting;
       const shouldSplit = isSplitActive && extractedCards.length > parsedSplitSize;
 
       pushLog(`🔍 [THIẾT LẬP LƯU BỘ THẺ] Phân tích trạng thái phân chia thẻ học:`, true);
-      pushLog(`  - Nút tự động chia nhỏ hoạt động: ${isSplitDeckEnabled ? "BẬT" : "TẮT"}`);
-      pushLog(`  - Thêm thẻ học vào bộ sẵn có: ${isAddToExisting}`);
+      pushLog(`  - Nút tự động chia nhỏ hoạt động: ${currentIsSplitEnabled ? "BẬT" : "TẮT"}`);
+      pushLog(`  - Thêm thẻ học vào bộ sẵn có: ${currentIsAddToExisting}`);
       pushLog(`  - Ngưỡng giới hạn thẻ tối đa mỗi bộ: ${parsedSplitSize} thẻ`);
       pushLog(`  - Tổng số thẻ chuẩn bị ghi nhận: ${extractedCards.length} thẻ`);
       pushLog(`  -> Kết luận Chia Nhỏ: ${shouldSplit ? "KÍCH HOẠT CHIA TỰ ĐỘNG" : "KHÔNG CHIA - NHẬP GHÉP LÀM 1 BỘ HỌC PHẦN CHUNG"}`);
